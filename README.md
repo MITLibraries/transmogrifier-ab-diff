@@ -28,7 +28,7 @@ A `run.json` follows roughly the following format, demonstrating fields added by
 ```json
 {
    // all data from job.json included...,
-   "timestamp": "2024-08-23_15:55:00",
+   "timestamp": "2024-08-23_15-55-00",
    "transmogrifier_docker_image_a": "transmogrifier-job-<name>-version-a:latest",
    "transmogrifier_docker_image_b": "transmogrifier-job-<name>-version-b:latest",
    "input_files": [
