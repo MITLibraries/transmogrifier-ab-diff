@@ -1,6 +1,6 @@
 import logging
 
-from abdiff.config import configure_logger, configure_sentry
+from abdiff.config import configure_logger
 
 
 def test_configure_logger_not_verbose():
@@ -17,21 +17,3 @@ def test_configure_logger_verbose():
     debug_log_level = 10
     assert logger.getEffectiveLevel() == debug_log_level
     assert result == "Logger 'tests.test_config' configured with level=DEBUG"
-
-
-def test_configure_sentry_no_env_variable(monkeypatch):
-    monkeypatch.delenv("SENTRY_DSN", raising=False)
-    result = configure_sentry()
-    assert result == "No Sentry DSN found, exceptions will not be sent to Sentry"
-
-
-def test_configure_sentry_env_variable_is_none(monkeypatch):
-    monkeypatch.setenv("SENTRY_DSN", "None")
-    result = configure_sentry()
-    assert result == "No Sentry DSN found, exceptions will not be sent to Sentry"
-
-
-def test_configure_sentry_env_variable_is_dsn(monkeypatch):
-    monkeypatch.setenv("SENTRY_DSN", "https://1234567890@00000.ingest.sentry.io/123456")
-    result = configure_sentry()
-    assert result == "Sentry DSN found, exceptions will be sent to Sentry with env=test"

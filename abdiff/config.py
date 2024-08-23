@@ -1,7 +1,4 @@
 import logging
-import os
-
-import sentry_sdk
 
 
 def configure_logger(logger: logging.Logger, *, verbose: bool) -> str:
@@ -22,12 +19,3 @@ def configure_logger(logger: logging.Logger, *, verbose: bool) -> str:
         f"Logger '{logger.name}' configured with level="
         f"{logging.getLevelName(logger.getEffectiveLevel())}"
     )
-
-
-def configure_sentry() -> str:
-    env = os.getenv("WORKSPACE")
-    sentry_dsn = os.getenv("SENTRY_DSN")
-    if sentry_dsn and sentry_dsn.lower() != "none":
-        sentry_sdk.init(sentry_dsn, environment=env)
-        return f"Sentry DSN found, exceptions will be sent to Sentry with env={env}"
-    return "No Sentry DSN found, exceptions will not be sent to Sentry"
