@@ -4,28 +4,46 @@ Compare transformed TIMDEX records from two versions (A,B) of Transmogrifier.
 
 # abdiff
 
-`abdiff` is the name of the CLI application in this repository that performs an A/B test of Transmogrifier by 
-performing the following:
+`abdiff` is the name of the CLI application in this repository that performs an A/B test of Transmogrifier.
 
-1. initialize a new "Job" with two git commit SHAs of Transmogrifier (A and B) to compare the transformed records from
-2. locally build A and B Docker images of Transmogrifier based on these commits
-3. accept and transform a batch of input files, for A and B versions of Transmogrifier, constituting a "Run"
-4. collate all A and B transformed records into a single parquet file
-5. for each `timdex_record_id` create a diff of version A and B
-6. generate metrics derived from all diffs
-7. provide a Flask app to view and explore the metrics
+## Concepts
 
-## Job, Run, and File Structure
+A **Job** in `abdiff` represents the A/B test for comparing the results from two versions of Transmogrifier.  When a job is first created, a working directory and a JSON file `job.json` with an initial set of configurations is created.
 
-A "Job" is defined as two versions of Transmogrifier to compare.  A "Run" is a run of this Job, given a set of input files
-to transform.  Each Job gets its own directory, and each Run is fully encapsulated in a sub-directory of the Job.  All of this
-is written to local `./output` directory.
+`job.json` follows roughly the following format:
 
-This results in a file structure similar to the following:
+```json
+{
+   "job_name": "<slugified version of passed job name>",
+   "transmogrifier_version_a": "<git commit SHA or tag name of version 'A' of Transmogrifier>",
+   "transmogrifier_version_b": "<git commit SHA or tag name of version 'B' of Transmogrifier>",
+   // any other data helpful to store about the job...
+}
+```
+
+A **Run** is the _execution_ of a job. The outputs from a run are fully encapsulated in a nested sub-directory of the job folder, with each run uniquely identified by the timestamp of execution (formatted as `YYYY-MM-DD_HH-MM-SS`). When a run is executed, the job JSON file is cloned into the run folder as `run.json`, and is then updated with details about the run along the way.
+
+A `run.json` follows roughly the following format, demonstrating fields added by the run:
+
+```json
+{
+   // all data from job.json included...,
+   "timestamp": "2024-08-23_15:55:00",
+   "transmogrifier_docker_image_a": "transmogrifier-job-<name>-version-a:latest",
+   "transmogrifier_docker_image_b": "transmogrifier-job-<name>-version-b:latest",
+   "input_files": [
+      "s3://path/to/extract_file_1.xml",
+      "s3://path/to/extract_file_2.xml"
+   ]
+   // any other data helpful to store about the run...
+}
+```
+
+By default, all job working directories are created in `./output`.  Taken altogether, the following sketches a single job `"test-refactor"` and two runs `"2024-08-23_12-10-00"` and `"2024-08-23_13-30-00"`, and the resulting file structure:
 
 ```text
 ├── output
-│   └── test-refactor-1
+│   └── test-refactor
 │       ├── job.json
 │       └── runs
 │           ├── 2024-08-23_12-10-00
@@ -41,7 +59,7 @@ This results in a file structure similar to the following:
 │           │           ├── alma-2024-01-01-transformed-to-index.json
 │           │           └── dspace-2024-03-15-transformed-to-index.json
 │           └── 2024-08-23_13-30-00
-                └── # and similar structure here for this run...
+               └── # and similar structure here for this run...
 ```
 
 ## CLI commands
