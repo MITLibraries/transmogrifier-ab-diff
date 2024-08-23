@@ -22,7 +22,7 @@ update: install # Update Python dependencies
 ######################
 
 test: # Run tests and print a coverage report
-	pipenv run coverage run --source=my_app -m pytest -vv
+	pipenv run coverage run --source=abdiff -m pytest -vv
 	pipenv run coverage report -m
 
 coveralls: test # Write coverage data to an LCOV report
