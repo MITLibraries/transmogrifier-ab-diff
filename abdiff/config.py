@@ -1,4 +1,22 @@
 import logging
+import os
+from typing import Any
+
+
+class Config:
+    REQUIRED_ENV_VARS = ("WORKSPACE",)
+    OPTIONAL_ENV_VARS = ("DATA_DIRECTORY",)
+
+    def __getattr__(self, name: str) -> Any:  # noqa: ANN401
+        """Method to raise exception if required env vars not set."""
+        if name in self.REQUIRED_ENV_VARS or name in self.OPTIONAL_ENV_VARS:
+            return os.getenv(name)
+        message = f"'{name}' not a valid configuration variable"
+        raise AttributeError(message)
+
+    @property
+    def data_directory(self) -> str:
+        return self.DATA_DIRECTORY or "output"
 
 
 def configure_logger(logger: logging.Logger, *, verbose: bool) -> str:
