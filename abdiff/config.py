@@ -1,7 +1,4 @@
 import logging
-import os
-
-import sentry_sdk
 
 
 def configure_logger(logger: logging.Logger, *, verbose: bool) -> str:
@@ -12,7 +9,7 @@ def configure_logger(logger: logging.Logger, *, verbose: bool) -> str:
         )
         logger.setLevel(logging.DEBUG)
         for handler in logging.root.handlers:
-            handler.addFilter(logging.Filter("my_app"))
+            handler.addFilter(logging.Filter("abdiff"))
     else:
         logging.basicConfig(
             format="%(asctime)s %(levelname)s %(name)s.%(funcName)s(): %(message)s"
@@ -22,12 +19,3 @@ def configure_logger(logger: logging.Logger, *, verbose: bool) -> str:
         f"Logger '{logger.name}' configured with level="
         f"{logging.getLevelName(logger.getEffectiveLevel())}"
     )
-
-
-def configure_sentry() -> str:
-    env = os.getenv("WORKSPACE")
-    sentry_dsn = os.getenv("SENTRY_DSN")
-    if sentry_dsn and sentry_dsn.lower() != "none":
-        sentry_sdk.init(sentry_dsn, environment=env)
-        return f"Sentry DSN found, exceptions will be sent to Sentry with env={env}"
-    return "No Sentry DSN found, exceptions will not be sent to Sentry"

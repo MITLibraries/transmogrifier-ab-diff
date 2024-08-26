@@ -22,7 +22,7 @@ update: install # Update Python dependencies
 ######################
 
 test: # Run tests and print a coverage report
-	pipenv run coverage run --source=my_app -m pytest -vv
+	pipenv run coverage run --source=abdiff -m pytest -vv
 	pipenv run coverage report -m
 
 coveralls: test # Write coverage data to an LCOV report
@@ -47,8 +47,7 @@ safety: # Check for security vulnerabilities and verify Pipfile.lock is up-to-da
 	pipenv check
 	pipenv verify
 
-lint-apply: # Apply changes with 'black' and resolve 'fixable errors' with 'ruff'
-	black-apply ruff-apply 
+lint-apply: black-apply ruff-apply # Apply changes with 'black' and resolve 'fixable errors' with 'ruff'
 
 black-apply: # Apply changes with 'black'
 	pipenv run black .

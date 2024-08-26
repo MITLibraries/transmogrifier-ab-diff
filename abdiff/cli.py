@@ -4,7 +4,7 @@ from time import perf_counter
 
 import click
 
-from my_app.config import configure_logger, configure_sentry
+from abdiff.config import configure_logger
 
 logger = logging.getLogger(__name__)
 
@@ -17,7 +17,6 @@ def main(*, verbose: bool) -> None:
     start_time = perf_counter()
     root_logger = logging.getLogger()
     logger.info(configure_logger(root_logger, verbose=verbose))
-    logger.info(configure_sentry())
     logger.info("Running process")
 
     # Do things here!

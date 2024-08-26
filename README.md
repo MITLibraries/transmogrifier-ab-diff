@@ -1,28 +1,70 @@
-# python-cli-template
+# transmogrifier-ab-diff
 
-A template repository for creating Python CLI applications.
+Compare transformed TIMDEX records from two versions (A,B) of Transmogrifier.
 
-## App Setup (delete this section and above after initial application setup)
+# abdiff
 
-1. Rename "my_app" to the desired app name across the repo. (May be helpful to do a project-wide find-and-replace).
-2. Update Python version if needed.
-3. Install all dependencies with `make install`  to create initial Pipfile.lock with latest dependency versions.
-4. Add initial app description to README and update initial required ENV variable documentation as needed.
-5. Update license if needed (check app-specific dependencies for licensing terms).
-6. Check Github repository settings:
-   - Confirm repo branch protection settings are correct (see [dev docs](https://mitlibraries.github.io/guides/basics/github.html) for details)
-   - Confirm that all of the following are enabled in the repo's code security and analysis settings:
-      - Dependabot alerts
-      - Dependabot security updates
-      - Secret scanning
-7. Create a Sentry project for the app if needed (we want this for most apps):
-   - Send initial exceptions to Sentry project for dev, stage, and prod environments to create them.
-   - Create an alert for the prod environment only, with notifications sent to the appropriate team(s).
-   - If *not* using Sentry, delete Sentry configuration from config.py and test_config.py, and remove sentry_sdk from project dependencies.
+`abdiff` is the name of the CLI application in this repository that performs an A/B test of Transmogrifier.
 
-# my_app
+## Concepts
 
-Description of the app
+A **Job** in `abdiff` represents the A/B test for comparing the results from two versions of Transmogrifier.  When a job is first created, a working directory and a JSON file `job.json` with an initial set of configurations is created.
+
+`job.json` follows roughly the following format:
+
+```json
+{
+   "job_name": "<slugified version of passed job name>",
+   "transmogrifier_version_a": "<git commit SHA or tag name of version 'A' of Transmogrifier>",
+   "transmogrifier_version_b": "<git commit SHA or tag name of version 'B' of Transmogrifier>",
+   // any other data helpful to store about the job...
+}
+```
+
+A **Run** is the _execution_ of a job. The outputs from a run are fully encapsulated in a nested sub-directory of the job folder, with each run uniquely identified by the timestamp of execution (formatted as `YYYY-MM-DD_HH-MM-SS`). When a run is executed, the job JSON file is cloned into the run folder as `run.json`, and is then updated with details about the run along the way.
+
+A `run.json` follows roughly the following format, demonstrating fields added by the run:
+
+```json
+{
+   // all data from job.json included...,
+   "timestamp": "2024-08-23_15-55-00",
+   "transmogrifier_docker_image_a": "transmogrifier-job-<name>-version-a:latest",
+   "transmogrifier_docker_image_b": "transmogrifier-job-<name>-version-b:latest",
+   "input_files": [
+      "s3://path/to/extract_file_1.xml",
+      "s3://path/to/extract_file_2.xml"
+   ]
+   // any other data helpful to store about the run...
+}
+```
+
+By default, all job working directories are created in `./output`.  Taken altogether, the following sketches a single job `"test-refactor"` and two runs `"2024-08-23_12-10-00"` and `"2024-08-23_13-30-00"`, and the resulting file structure:
+
+```text
+├── output
+│   └── test-refactor
+│       ├── job.json
+│       └── runs
+│           ├── 2024-08-23_12-10-00
+│           │   ├── collate_ab.parquet
+│           │   ├── diff_ab.parquet
+│           │   ├── metrics_ab.json
+│           │   ├── run.json
+│           │   └── transformed
+│           │       ├── a
+│           │       │   ├── alma-2024-01-01-transformed-to-index.json
+│           │       │   └── dspace-2024-03-15-transformed-to-index.json
+│           │       └── b
+│           │           ├── alma-2024-01-01-transformed-to-index.json
+│           │           └── dspace-2024-03-15-transformed-to-index.json
+│           └── 2024-08-23_13-30-00
+               └── # and similar structure here for this run...
+```
+
+## CLI commands
+
+Coming soon...
 
 ## Development
 
@@ -31,14 +73,13 @@ Description of the app
 - To update dependencies: `make update`
 - To run unit tests: `make test`
 - To lint the repo: `make lint`
-- To run the app: `pipenv run my_app --help`
+- To run the app: `pipenv run abdiff --help`
 
 ## Environment Variables
 
 ### Required
 
 ```shell
-SENTRY_DSN=### If set to a valid Sentry DSN, enables Sentry exception monitoring. This is not needed for local development.
 WORKSPACE=### Set to `dev` for local development, this will be set to `stage` and `prod` in those environments by Terraform.
 ```
 
