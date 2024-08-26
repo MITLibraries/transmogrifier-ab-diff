@@ -12,7 +12,7 @@ from abdiff.core.utils import (
 @pytest.fixture(autouse=True)
 def _test_env(monkeypatch, tmp_path):
     monkeypatch.setenv("WORKSPACE", "test")
-    monkeypatch.setenv("DATA_DIRECTORY", str(tmp_path / "output"))
+    monkeypatch.setenv("ROOT_WORKING_DIRECTORY", str(tmp_path / "output"))
 
 
 @pytest.fixture

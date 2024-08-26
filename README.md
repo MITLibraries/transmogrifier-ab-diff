@@ -88,7 +88,7 @@ WORKSPACE=### Set to `dev` for local development, this will be set to `stage` an
 _Delete this section if it isn't applicable to the PR._
 
 ```shell
-<OPTIONAL_ENV>=### Description for optional environment variable
+ROOT_WORKING_DIRECTORY=### Location for Jobs and other working artifacts; defaults to relative `./output`
 ```
 
 

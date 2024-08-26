@@ -24,7 +24,7 @@ def test_job_slug_remove_special_characters():
 
 def test_job_working_directory_success(job_name, job_slug, tmp_path):
     _, job_dir = get_job_slug_and_working_directory(job_name)
-    assert job_dir == Path(CONFIG.data_directory) / job_slug
+    assert job_dir == Path(CONFIG.root_working_directory) / job_slug
 
 
 def test_create_job_json_returns_initial_data(job_name, job_working_directory):

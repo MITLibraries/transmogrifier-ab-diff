@@ -5,7 +5,7 @@ from typing import Any
 
 class Config:
     REQUIRED_ENV_VARS = ("WORKSPACE",)
-    OPTIONAL_ENV_VARS = ("DATA_DIRECTORY",)
+    OPTIONAL_ENV_VARS = ("ROOT_WORKING_DIRECTORY",)
 
     def __getattr__(self, name: str) -> Any:  # noqa: ANN401
         """Method to raise exception if required env vars not set."""
@@ -15,8 +15,8 @@ class Config:
         raise AttributeError(message)
 
     @property
-    def data_directory(self) -> str:
-        return self.DATA_DIRECTORY or "output"
+    def root_working_directory(self) -> str:
+        return self.ROOT_WORKING_DIRECTORY or "output"
 
 
 def configure_logger(logger: logging.Logger, *, verbose: bool) -> str:

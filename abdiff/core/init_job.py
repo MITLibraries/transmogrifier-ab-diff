@@ -23,7 +23,7 @@ def init_job(job_name: str) -> dict:
     job_slug, job_working_directory = get_job_slug_and_working_directory(job_name)
     os.makedirs(job_working_directory)
     logger.info(
-        f"Job '{job_slug}' initialized.  Working directory: {job_working_directory}"
+        f"Job '{job_slug}' initialized.  Job working directory: {job_working_directory}"
     )
 
     job_data = {
