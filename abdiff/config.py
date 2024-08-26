@@ -4,7 +4,12 @@ from typing import Any
 
 
 class Config:
-    REQUIRED_ENV_VARS = ("WORKSPACE",)
+    REQUIRED_ENV_VARS = (
+        "AWS_ACCESS_KEY_ID",
+        "AWS_SECRET_ACCESS_KEY",
+        "AWS_SESSION_TOKEN",
+        "WORKSPACE",
+    )
 
     def __getattr__(self, name: str) -> Any:  # noqa: ANN401
         """Method to raise exception if required env vars not set."""

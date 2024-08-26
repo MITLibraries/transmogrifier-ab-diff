@@ -5,7 +5,11 @@ from pathlib import Path
 import pytest
 
 from abdiff.core import init_job
-from abdiff.core.utils import read_job_json, update_or_create_job_json
+from abdiff.core.utils import (
+    create_subdirectories,
+    read_job_json,
+    update_or_create_job_json,
+)
 
 
 def test_read_job_json_no_job_raise_error(job_directory):
@@ -38,3 +42,13 @@ def test_update_job_json_file_success(job_directory):
         "job_message": message,
         "msg": "in a bottle",
     }
+
+
+def test_create_sub_directories(tmp_path):
+    base_directory = str(tmp_path / "base")
+    subdirectory_a, subdirectory_b = create_subdirectories(
+        base_directory,
+        subdirectories=["subdirectory/a", "subdirectory/b"],
+    )
+    assert os.path.exists(subdirectory_a)
+    assert os.path.exists(subdirectory_b)
