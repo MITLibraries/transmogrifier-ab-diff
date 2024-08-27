@@ -5,6 +5,7 @@ name = "pypi"
 
 [packages]
 click = "*"
+python-slugify = "*"
 
 [dev-packages]
 black = "*"
