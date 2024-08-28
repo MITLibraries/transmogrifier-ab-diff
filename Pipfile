@@ -15,6 +15,7 @@ pytest = "*"
 ruff = "*"
 ipython = "*"
 pytest-freezegun = "*"
+setuptools = "*"
 
 [requires]
 python_version = "3.12"
