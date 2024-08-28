@@ -25,7 +25,13 @@ def init_run(
 
     # clone job data and update with run information
     run_data = read_job_json(job_directory)
-    run_data.update({"run_directory": run_directory, "run_message": message})
+    run_data.update(
+        {
+            "run_directory": run_directory,
+            "run_message": message,
+            "run_timestamp": run_timestamp,
+        }
+    )
     update_or_create_run_json(run_directory, run_data)
 
     return run_directory
