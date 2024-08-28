@@ -4,7 +4,7 @@ from pathlib import Path
 
 import pytest
 
-from abdiff.core.init_job import init_job
+from abdiff.core import init_job
 from abdiff.core.utils import read_job_json, update_or_create_job_json
 
 
@@ -27,12 +27,12 @@ def test_create_job_json_file_success(tmp_path):
 
 
 def test_update_job_json_file_success(job_directory):
-    message = "I am an Example job."
+    message = "I am an example job."
     init_job(job_directory, message=message)
     update_or_create_job_json(job_directory, {"msg": "in a bottle"})
     job_data = read_job_json(job_directory)
     assert job_data == {
         "job_directory": job_directory,
-        "message": message,
+        "job_message": message,
         "msg": "in a bottle",
     }

@@ -11,26 +11,40 @@ CONFIG = Config()
 
 def read_job_json(job_directory: str) -> dict:
     """Read job JSON file."""
-    job_json_filepath = Path(job_directory) / "job.json"
-    with open(job_json_filepath) as f:
+    with open(Path(job_directory) / "job.json") as f:
         return json.load(f)
 
 
-def update_or_create_job_json(job_directory: str | Path, new_job_data: dict) -> dict:
-    """Create or update a job's JSON file.
+def read_run_json(run_directory: str) -> dict:
+    """Read run JSON file."""
+    with open(Path(run_directory) / "run.json") as f:
+        return json.load(f)
 
-    This is helpful as a utility method, as multiple steps in the process may update the
-    Job JSON file, with this as a standard interface.
-    """
-    job_json_filepath = Path(job_directory) / "job.json"
 
-    job_data = {}
-    if os.path.exists(job_json_filepath):
-        with open(job_json_filepath) as f:
-            job_data = json.load(f)
-    job_data.update(new_job_data)
+def update_or_create_json(
+    directory: str | Path,
+    filename: str,
+    new_data: dict,
+) -> dict:
+    filepath = Path(directory) / filename
+    data = {}
 
-    with open(job_json_filepath, "w") as f:
-        json.dump(job_data, f, indent=2)
+    if os.path.exists(filepath):
+        with open(filepath) as f:
+            data = json.load(f)
+    data.update(new_data)
 
-    return job_data
+    with open(filepath, "w") as f:
+        json.dump(data, f, indent=2)
+
+    return data
+
+
+def update_or_create_job_json(job_directory: str | Path, new_data: dict) -> dict:
+    """Create or update a job's JSON file."""
+    return update_or_create_json(job_directory, "job.json", new_data)
+
+
+def update_or_create_run_json(run_directory: str | Path, new_data: dict) -> dict:
+    """Create or update a run's JSON file."""
+    return update_or_create_json(run_directory, "run.json", new_data)

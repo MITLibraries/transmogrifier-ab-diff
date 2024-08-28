@@ -1,6 +1,8 @@
 import pytest
 from click.testing import CliRunner
 
+from abdiff.core import init_job
+
 
 @pytest.fixture(autouse=True)
 def _test_env(monkeypatch, tmp_path):
@@ -21,3 +23,8 @@ def job_directory(tmp_path):
 @pytest.fixture
 def example_job_directory():
     return "tests/fixtures/jobs/example-job-1"
+
+
+@pytest.fixture
+def job(job_directory):
+    return init_job(job_directory)
