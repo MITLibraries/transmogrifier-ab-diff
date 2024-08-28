@@ -2,51 +2,37 @@ import json
 import os.path
 from pathlib import Path
 
-from abdiff.config import Config
-from abdiff.core.utils import (
-    get_job_slug_and_working_directory,
-    update_or_create_job_json,
-)
+import pytest
 
-CONFIG = Config()
+from abdiff.core.init_job import init_job
+from abdiff.core.utils import read_job_json, update_or_create_job_json
 
 
-def test_job_slug_success(job_name, job_slug, tmp_path):
-    _job_slug, _ = get_job_slug_and_working_directory(job_name)
-    assert job_slug == _job_slug
+def test_read_job_json_no_job_raise_error(job_directory):
+    with pytest.raises(OSError, match="No such file or directory"):
+        read_job_json(job_directory)
 
 
-def test_job_slug_remove_special_characters():
-    job_name = "abc 123 $#$#( // :: !! def $## 456"
-    job_slug, _ = get_job_slug_and_working_directory(job_name)
-    assert job_slug == "abc-123-def-456"
+def test_read_job_json_success(example_job_directory):
+    job_data = read_job_json(example_job_directory)
+    with open(Path(example_job_directory) / "job.json") as f:
+        assert job_data == json.load(f)
 
 
-def test_job_working_directory_success(job_name, job_slug, tmp_path):
-    _, job_dir = get_job_slug_and_working_directory(job_name)
-    assert job_dir == Path(CONFIG.root_working_directory) / job_slug
+def test_create_job_json_file_success(tmp_path):
+    job_json_filepath = tmp_path / "job.json"
+    assert not os.path.exists(job_json_filepath)
+    update_or_create_job_json(tmp_path, {"msg": "in a bottle"})
+    assert os.path.exists(job_json_filepath)
 
 
-def test_create_job_json_returns_initial_data(job_name, job_working_directory):
-    initial_job_data = {"msg": "in a bottle"}
-    set_job_data = update_or_create_job_json(job_name, initial_job_data)
-    assert set_job_data == initial_job_data
-
-
-def test_create_job_json_creates_file(job_name, job_working_directory):
-    initial_job_data = {"msg": "in a bottle"}
-    update_or_create_job_json(job_name, initial_job_data)
-    _, job_dir = get_job_slug_and_working_directory(job_name)
-    assert os.path.exists(job_dir / "job.json")
-
-
-def test_update_job_json_success(job_name, job_working_directory):
-    # simulate pre-existing job JSON file + data
-    with open(job_working_directory / "job.json", "w") as f:
-        json.dump({"msg": "in a bottle"}, f)
-
-    job_data = update_or_create_job_json(job_name, {"msg2": "still in bottle"})
+def test_update_job_json_file_success(job_directory):
+    message = "I am an Example job."
+    init_job(job_directory, message=message)
+    update_or_create_job_json(job_directory, {"msg": "in a bottle"})
+    job_data = read_job_json(job_directory)
     assert job_data == {
+        "job_directory": job_directory,
+        "message": message,
         "msg": "in a bottle",
-        "msg2": "still in bottle",
     }

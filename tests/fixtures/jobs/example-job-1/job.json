@@ -1,0 +1,4 @@
+{
+  "job_directory": "tests/fixtures/jobs/example-job-1",
+  "message": "I am an example job."
+}
