@@ -1,12 +1,7 @@
-import os
-
 import pytest
 from click.testing import CliRunner
-from slugify import slugify
 
-from abdiff.core.utils import (
-    get_job_slug_and_working_directory,
-)
+from abdiff.core import init_job
 
 
 @pytest.fixture(autouse=True)
@@ -21,17 +16,15 @@ def runner():
 
 
 @pytest.fixture
-def job_name():
-    return "Large Refactor Project"
+def job_directory(tmp_path):
+    return str(tmp_path / "example-job-1")
 
 
 @pytest.fixture
-def job_slug(job_name):
-    return slugify(job_name)
+def example_job_directory():
+    return "tests/fixtures/jobs/example-job-1"
 
 
 @pytest.fixture
-def job_working_directory(job_name):
-    job_slug, job_dir = get_job_slug_and_working_directory(job_name)
-    os.makedirs(job_dir)
-    return job_dir
+def job(job_directory):
+    return init_job(job_directory)

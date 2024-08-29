@@ -4,35 +4,47 @@ import json
 import os
 from pathlib import Path
 
-from slugify import slugify
-
 from abdiff.config import Config
 
 CONFIG = Config()
 
 
-def get_job_slug_and_working_directory(job_name: str) -> tuple[str, Path]:
-    """Create working directory for new job by slugifying job name."""
-    job_slug = slugify(job_name)
-    return job_slug, Path(CONFIG.root_working_directory) / job_slug
+def read_job_json(job_directory: str) -> dict:
+    """Read job JSON file."""
+    with open(Path(job_directory) / "job.json") as f:
+        return json.load(f)
 
 
-def update_or_create_job_json(job_name: str, new_job_data: dict) -> dict:
-    """Create or update a job's JSON file.
+def read_run_json(run_directory: str) -> dict:
+    """Read run JSON file."""
+    with open(Path(run_directory) / "run.json") as f:
+        return json.load(f)
 
-    This is helpful as a utility method, as multiple steps in the process may update the
-    Job JSON file, with this as a standard interface.
-    """
-    job_slug, job_working_directory = get_job_slug_and_working_directory(job_name)
-    job_json_filepath = job_working_directory / "job.json"
 
-    job_data = {}
-    if os.path.exists(job_json_filepath):
-        with open(job_json_filepath) as f:
-            job_data = json.load(f)
-    job_data.update(new_job_data)
+def update_or_create_json(
+    directory: str | Path,
+    filename: str,
+    new_data: dict,
+) -> dict:
+    filepath = Path(directory) / filename
+    data = {}
 
-    with open(job_json_filepath, "w") as f:
-        json.dump(job_data, f, indent=2)
+    if os.path.exists(filepath):
+        with open(filepath) as f:
+            data = json.load(f)
+    data.update(new_data)
 
-    return job_data
+    with open(filepath, "w") as f:
+        json.dump(data, f, indent=2)
+
+    return data
+
+
+def update_or_create_job_json(job_directory: str, new_data: dict) -> dict:
+    """Create or update a job's JSON file."""
+    return update_or_create_json(job_directory, "job.json", new_data)
+
+
+def update_or_create_run_json(run_directory: str, new_data: dict) -> dict:
+    """Create or update a run's JSON file."""
+    return update_or_create_json(run_directory, "run.json", new_data)

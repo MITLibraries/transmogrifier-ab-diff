@@ -39,11 +39,10 @@ A `run.json` follows roughly the following format, demonstrating fields added by
 }
 ```
 
-By default, all job working directories are created in `./output`.  Taken altogether, the following sketches a single job `"test-refactor"` and two runs `"2024-08-23_12-10-00"` and `"2024-08-23_13-30-00"`, and the resulting file structure:
+The following sketches a single job `"test-refactor"` and two runs `"2024-08-23_12-10-00"` and `"2024-08-23_13-30-00"`, and the resulting file structure:
 
 ```text
-├── output
-│   └── test-refactor
+│   ─── test-refactor
 │       ├── job.json
 │       └── runs
 │           ├── 2024-08-23_12-10-00
@@ -85,10 +84,7 @@ WORKSPACE=### Set to `dev` for local development, this will be set to `stage` an
 
 ### Optional
 
-_Delete this section if it isn't applicable to the PR._
-
 ```shell
-ROOT_WORKING_DIRECTORY=### Location for Jobs and other working artifacts; defaults to relative `./output`
 ```
 
 

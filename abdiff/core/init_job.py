@@ -2,35 +2,26 @@
 
 import logging
 import os
+from pathlib import Path
 
 from abdiff.config import Config
-from abdiff.core.utils import (
-    get_job_slug_and_working_directory,
-    update_or_create_job_json,
-)
+from abdiff.core.utils import update_or_create_job_json
 
 CONFIG = Config()
 
 logger = logging.getLogger(__name__)
 
 
-def init_job(job_name: str) -> dict:
-    """Function to initialize a new Job.
+def init_job(
+    job_directory: str,
+    message: str | None = None,
+) -> str:
+    """Function to initialize a new Job."""
+    os.makedirs(job_directory)
+    os.makedirs(Path(job_directory) / "runs")
+    logger.info(f"Job directory created: {job_directory}")
 
-    1. create a working directory for job
-    2. initialize a job.json file
-    """
-    job_slug, job_working_directory = get_job_slug_and_working_directory(job_name)
-    os.makedirs(job_working_directory)
-    logger.info(
-        f"Job '{job_slug}' initialized.  Job working directory: {job_working_directory}"
-    )
+    job_data = {"job_directory": job_directory, "job_message": message}
+    update_or_create_job_json(job_directory, job_data)
 
-    job_data = {
-        "job_name": job_name,
-        "job_slug": job_slug,
-        "working_directory": str(job_working_directory),
-    }
-    update_or_create_job_json(job_name, job_data)
-
-    return job_data
+    return job_directory
