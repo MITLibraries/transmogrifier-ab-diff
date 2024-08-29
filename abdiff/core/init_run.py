@@ -21,7 +21,7 @@ def init_run(
     run_timestamp = datetime.datetime.now(tz=datetime.UTC).strftime("%Y-%m-%d_%H-%M-%S")
     run_directory = str(Path(job_directory) / "runs" / run_timestamp)
     os.makedirs(run_directory)
-    logger.info(f"Run working directory created: {run_directory}")
+    logger.info(f"Run directory created: {run_directory}")
 
     # clone job data and update with run information
     run_data = read_job_json(job_directory)

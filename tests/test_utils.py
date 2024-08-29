@@ -24,6 +24,8 @@ def test_create_job_json_file_success(tmp_path):
     assert not os.path.exists(job_json_filepath)
     update_or_create_job_json(tmp_path, {"msg": "in a bottle"})
     assert os.path.exists(job_json_filepath)
+    with open(job_json_filepath) as f:
+        assert json.load(f) == {"msg": "in a bottle"}
 
 
 def test_update_job_json_file_success(job_directory):

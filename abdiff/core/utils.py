@@ -40,11 +40,11 @@ def update_or_create_json(
     return data
 
 
-def update_or_create_job_json(job_directory: str | Path, new_data: dict) -> dict:
+def update_or_create_job_json(job_directory: str, new_data: dict) -> dict:
     """Create or update a job's JSON file."""
     return update_or_create_json(job_directory, "job.json", new_data)
 
 
-def update_or_create_run_json(run_directory: str | Path, new_data: dict) -> dict:
+def update_or_create_run_json(run_directory: str, new_data: dict) -> dict:
     """Create or update a run's JSON file."""
     return update_or_create_json(run_directory, "run.json", new_data)

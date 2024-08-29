@@ -19,7 +19,7 @@ def init_job(
     """Function to initialize a new Job."""
     os.makedirs(job_directory)
     os.makedirs(Path(job_directory) / "runs")
-    logger.info(f"Job working directory created: {job_directory}")
+    logger.info(f"Job directory created: {job_directory}")
 
     job_data = {"job_directory": job_directory, "job_message": message}
     update_or_create_job_json(job_directory, job_data)
