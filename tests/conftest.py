@@ -35,15 +35,13 @@ def job(job_directory):
 def mocked_docker_client():
     docker_client = MagicMock()
     docker_images = []
-    for image_name in [
+    for image_tag in [
         "transmogrifier-example-job-1-abc123:latest",
         "transmogrifier-example-job-1-def456:latest",
     ]:
         docker_image = MagicMock()
-        docker_image.tags = [image_name]
+        docker_image.tags = [image_tag]
         docker_images.append((docker_image, ""))
     docker_client.images.build.side_effect = docker_images
-    docker_client.images.list.return_value = [
-        "transmogrifier-example-job-1-def456:latest"
-    ]
+    docker_client.images.list.return_value = [docker_image]
     return docker_client
