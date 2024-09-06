@@ -34,7 +34,7 @@ def build_ab_images(
         logger.debug(f"Processing commit: {commit_sha}")
         image_tag = f"transmogrifier-{job_directory.split("/")[-1]}-{commit_sha}:latest"
         if docker_image_exists(docker_client, image_tag):
-            logger.debug("Docker image already exists with tag: {image_tag}")
+            logger.debug(f"Docker image already exists with tag: {image_tag}")
             image_tags.append(image_tag)
         else:
             image = build_image(job_directory, commit_sha, docker_client)
