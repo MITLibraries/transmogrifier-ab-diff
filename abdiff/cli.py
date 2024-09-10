@@ -41,6 +41,7 @@ def post_main_group_subcommand(
     *_args: tuple,
     **_kwargs: dict,
 ) -> None:
+    """Callback for any work to perform after a main sub-command completes."""
     logger.info(
         "Total elapsed: %s",
         str(
