@@ -14,10 +14,11 @@ A **Job** in `abdiff` represents the A/B test for comparing the results from two
 
 ```json
 {
-   "job_name": "<slugified version of passed job name>",
-   "transmogrifier_version_a": "<git commit SHA or tag name of version 'A' of Transmogrifier>",
-   "transmogrifier_version_b": "<git commit SHA or tag name of version 'B' of Transmogrifier>",
-   // any other data helpful to store about the job...
+	"job_directory": "amazing-job",
+	"job_message": "This job is testing all the things.",
+	"image_tag_a": "transmogrifier-example-job-1-abc123:latest",
+	"image_tag_b": "transmogrifier-example-job-1-def456:latest",
+	// potentially other job related data...
 }
 ```
 
@@ -27,15 +28,13 @@ A `run.json` follows roughly the following format, demonstrating fields added by
 
 ```json
 {
-   // all data from job.json included...,
-   "timestamp": "2024-08-23_15-55-00",
-   "transmogrifier_docker_image_a": "transmogrifier-job-<name>-version-a:latest",
-   "transmogrifier_docker_image_b": "transmogrifier-job-<name>-version-b:latest",
+   // all job data...
+   "timestamp": "2024-08-23_15-55-00",   
    "input_files": [
       "s3://path/to/extract_file_1.xml",
       "s3://path/to/extract_file_2.xml"
    ]
-   // any other data helpful to store about the run...
+   // potentially other run related data...
 }
 ```
 
@@ -63,7 +62,45 @@ The following sketches a single job `"test-refactor"` and two runs `"2024-08-23_
 
 ## CLI commands
 
-Coming soon...
+### `abdiff`
+```text
+Usage: -c [OPTIONS] COMMAND [ARGS]...
+
+Options:
+  -v, --verbose  Pass to log at debug level instead of info.
+  -h, --help     Show this message and exit.
+
+Commands:
+  init-job  Initialize a new Job.
+  ping      Debug ping/pong command.
+```
+
+### `abdiff ping`
+```text
+Usage: -c ping [OPTIONS]
+
+  Debug ping/pong command.
+
+Options:
+  -h, --help  Show this message and exit.
+```
+
+### `abdiff init-job`
+```
+Usage: -c init-job [OPTIONS]
+
+  Initialize a new Job.
+
+Options:
+  -m, --message TEXT        Message to describe Job.
+  -d, --job-directory TEXT  Job working directory to create.  [required]
+  -a, --commit-sha-a TEXT   Transmogrifier commit SHA for version 'A'
+                            [required]
+  -b, --commit-sha-b TEXT   Transmogrifier commit SHA for version 'B'
+                            [required]
+  -h, --help                Show this message and exit.
+```
+
 
 ## Development
 
