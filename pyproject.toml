@@ -33,7 +33,8 @@ ignore = [
     "ANN101", 
     "ANN102", 
     "COM812", 
-    "D107", 
+    "D107",
+    "EM101",
     "N812", 
     "PTH", 
 
@@ -51,7 +52,7 @@ ignore = [
     "PLR0913", 
     "PLR0915",
     "S320",
-    "S321", 
+    "S321"
 ]
 
 # allow autofix behavior for specified rules

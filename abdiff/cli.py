@@ -11,6 +11,7 @@ from abdiff.config import configure_logger
 from abdiff.core import build_ab_images
 from abdiff.core import init_job as core_init_job
 from abdiff.core.utils import read_job_json
+from abdiff.webapp.app import app
 
 logger = logging.getLogger(__name__)
 
@@ -72,7 +73,7 @@ def shared_job_options(cli_command: Callable) -> Callable:
         "--message",
         type=str,
         required=False,
-        help="Message to describe Job.",
+        help="Message to describe Job or Run.",
         default="Not provided.",
     )(cli_command)
 
@@ -118,3 +119,15 @@ def init_job(
 
     job_json = json.dumps(read_job_json(job_directory), indent=2)
     logger.info(f"Job initialized: {job_json}")
+
+
+@main.command()
+@shared_job_options
+def view_job(
+    job_directory: str,
+    message: str,  # noqa: ARG001
+) -> None:
+    """Start flask app to view Job and Runs."""
+    logger.info(f"Starting flask webapp for job directory: {job_directory}")
+    app.config.update(JOB_DIRECTORY=job_directory)
+    app.run()

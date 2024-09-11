@@ -101,6 +101,17 @@ Options:
   -h, --help                Show this message and exit.
 ```
 
+### `abdiff view-job`
+```
+Usage: -c view-job [OPTIONS]
+
+  Start flask app to view Job and Runs.
+
+Options:
+  -m, --message TEXT        Message to describe Job.
+  -d, --job-directory TEXT  Job working directory to create.  [required]
+  -h, --help                Show this message and exit.
+```
 
 ## Development
 

@@ -1,0 +1,32 @@
+{% extends "base.html" %}
+
+{% block title %}Run {{run_data.timestamp}}{% endblock %}
+
+{% block content %}
+<div class="container">
+    <div class="row">
+        <h1>Run: <code>{{run_data.run_timestamp}}</code></h1>
+    </div>
+    <div class="row">
+        <h3>Details</h3>
+        <div id="runDetails" style="width: 100%; height: 400px;"></div>
+    </div>
+    <div class="row">
+        <h3 data-bs-toggle="collapse" data-bs-target="#collapseLogs" role="button" aria-expanded="false" aria-controls="collapseLogs">Transform Logs ⤵</h3>
+        <div class="collapse" id="collapseLogs">
+            <pre><code>{{transform_logs}}</code></pre>
+        </div>
+    </div>
+    <div class="row">
+        <h3>Diff Metrics</h3>
+        <div id="runMetrics" style="width: 100%; height: 400px;"></div>
+    </div>
+</div>
+
+<div>
+    <script>
+        loadJSONData("runDetails", `{{run_json|safe}}`);
+        loadJSONData("runMetrics", `{{metrics_json|safe}}`);
+    </script>
+</div>
+{% endblock %}

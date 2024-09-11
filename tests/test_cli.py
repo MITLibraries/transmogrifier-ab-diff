@@ -1,7 +1,7 @@
 import os
 from unittest.mock import patch
 
-from abdiff.cli import main
+from abdiff.cli import app, main
 from abdiff.core.utils import read_job_json
 
 
@@ -80,3 +80,25 @@ def test_init_job_pre_existing_job_directory_raise_error(
     )
     assert result.exit_code == 1
     assert "Job directory already exists" in result.output
+
+
+def test_view_job_webapp_configured_and_run_success(
+    caplog,
+    runner,
+):
+    job_directory = "tests/fixtures/jobs/example-job-1"
+
+    with patch.object(app, "run") as mocked_run:
+        mocked_run.run.return_value = None
+        _result = runner.invoke(
+            main,
+            [
+                "--verbose",
+                "view-job",
+                f"--job-directory={job_directory}",
+            ],
+        )
+
+    assert app.config["JOB_DIRECTORY"] == job_directory
+    assert f"Starting flask webapp for job directory: {job_directory}" in caplog.text
+    mocked_run.assert_called()
