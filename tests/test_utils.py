@@ -2,6 +2,7 @@ import json
 import os.path
 from pathlib import Path
 
+import pyarrow as pa
 import pytest
 
 from abdiff.core import init_job
@@ -9,6 +10,7 @@ from abdiff.core.utils import (
     create_subdirectories,
     read_job_json,
     update_or_create_job_json,
+    write_to_dataset,
 )
 
 
@@ -44,7 +46,7 @@ def test_update_job_json_file_success(job_directory):
     }
 
 
-def test_create_sub_directories(tmp_path):
+def test_create_sub_directories_success(tmp_path):
     base_directory = str(tmp_path / "base")
     subdirectory_a, subdirectory_b = create_subdirectories(
         base_directory,
@@ -52,3 +54,19 @@ def test_create_sub_directories(tmp_path):
     )
     assert os.path.exists(subdirectory_a)
     assert os.path.exists(subdirectory_b)
+
+
+def test_write_to_dataset_success(tmp_path):
+    record_batch = pa.RecordBatch.from_pylist(
+        [{"fruit": "apple", "color": "red"}, {"fruit": "banana", "color": "yellow"}]
+    )
+    test_schema = pa.schema(
+        [pa.field("fruit", pa.string()), pa.field("color", pa.string())]
+    )
+    write_to_dataset(
+        data=record_batch,
+        base_dir=tmp_path / "test_dataset",
+        schema=test_schema,
+        partition_columns=["fruit"],
+    )
+    assert set(os.listdir(tmp_path / "test_dataset")) == {"fruit=apple", "fruit=banana"}
