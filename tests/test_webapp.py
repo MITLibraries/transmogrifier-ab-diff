@@ -47,6 +47,18 @@ def test_run_route_load_run_data_success(
     assert kwargs["run_data"]["run_timestamp"] == webapp_run_timestamp
 
 
+def test_run_route_load_transformation_logs(
+    webapp_job_directory, webapp_run_timestamp, webapp_client
+):
+    with patch("abdiff.webapp.app.render_template") as mock_render:
+        _response = webapp_client.get(f"/run/{webapp_run_timestamp}")
+    args, kwargs = mock_render.call_args
+
+    assert (
+        kwargs["transform_logs"] == "This file normally has all logs from all containers."
+    )
+
+
 def test_shutdown_route_success(caplog, webapp_client):
     with patch("os.kill") as mock_pid_kill:
         _response = webapp_client.get("/shutdown")
