@@ -65,7 +65,7 @@ def shared_job_options(cli_command: Callable) -> Callable:
         "--job-directory",
         type=str,
         required=True,
-        help="Job working directory to create.",
+        help="Job directory.",
     )(cli_command)
 
     cli_command = click.option(
