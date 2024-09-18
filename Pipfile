@@ -13,11 +13,11 @@ types-pygit2 = "*"
 [dev-packages]
 black = "*"
 coveralls = "*"
+freezegun = "*"
 ipython = "*"
 mypy = "*"
 pre-commit = "*"
 pytest = "*"
-pytest-freezegun = "*"
 ruff = "*"
 setuptools = "*"
 

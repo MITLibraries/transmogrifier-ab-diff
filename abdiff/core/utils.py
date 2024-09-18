@@ -48,3 +48,22 @@ def update_or_create_job_json(job_directory: str, new_data: dict) -> dict:
 def update_or_create_run_json(run_directory: str, new_data: dict) -> dict:
     """Create or update a run's JSON file."""
     return update_or_create_json(run_directory, "run.json", new_data)
+
+
+def create_subdirectories(
+    base_directory: str, subdirectories: list[str]
+) -> tuple[str, ...]:
+    """Create subdirectories nested within a base directory.
+
+    This util is preferred for commands that require creating
+    nested subdirectories to organize outputs (e.g., run_ab_transforms).
+
+    Returns:
+        tuple[str, ...]: A tuple of absolute paths to created subdirectories.
+    """
+    directories = []
+    for subdirectory in subdirectories:
+        directory = Path(base_directory) / subdirectory
+        os.makedirs(directory)
+        directories.append(str(directory))
+    return tuple(directories)

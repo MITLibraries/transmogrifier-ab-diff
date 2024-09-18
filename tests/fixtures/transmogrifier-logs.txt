@@ -1,0 +1,6 @@
+2024-09-05 15:14:55 2024-09-05 19:14:55,492 INFO transmogrifier.cli.main(): Logger 'root' configured with level=INFO
+2024-09-05 15:14:55 2024-09-05 19:14:55,493 INFO transmogrifier.cli.main(): No Sentry DSN found, exceptions will not be sent to Sentry
+2024-09-05 15:14:55 2024-09-05 19:14:55,493 INFO transmogrifier.cli.main(): Running transform for source <source>
+2024-09-05 15:14:55 2024-09-05 19:14:55,920 INFO botocore.credentials.load(): Found credentials in environment variables.
+2024-09-05 15:15:17 2024-09-05 19:15:17,441 INFO transmogrifier.cli.main(): Completed transform, total records processed: 10, transformed records: 10, skipped records: 0, deleted records: 0
+2024-09-05 15:15:17 2024-09-05 19:15:17,442 INFO transmogrifier.cli.main(): Total time to complete transform: 0:00:21.949394
