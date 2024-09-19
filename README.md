@@ -92,8 +92,8 @@ Usage: -c init-job [OPTIONS]
   Initialize a new Job.
 
 Options:
+  -d, --job-directory TEXT  Job directory to create.  [required]
   -m, --message TEXT        Message to describe Job.
-  -d, --job-directory TEXT  Job directory.  [required]
   -a, --commit-sha-a TEXT   Transmogrifier commit SHA for version 'A'
                             [required]
   -b, --commit-sha-b TEXT   Transmogrifier commit SHA for version 'B'
@@ -108,8 +108,7 @@ Usage: -c view-job [OPTIONS]
   Start flask app to view Job and Runs.
 
 Options:
-  -m, --message TEXT        Message to describe Job or Run.
-  -d, --job-directory TEXT  Job directory.  [required]
+  -d, --job-directory TEXT  Job directory to view in webapp.  [required]
   -h, --help                Show this message and exit.
 ```
 
