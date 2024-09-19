@@ -1,0 +1,42 @@
+{% extends "base.html" %}
+
+{% block title %}Job Home{% endblock %}
+
+{% block content %}
+<div class="container">
+    <div class="row">
+        <h1>Job: <code>{{g.job_name_pretty}}</code></h1>
+    </div>
+    <div class="row">
+        <h3>Details</h3>
+        <div id="jobDetails" style="width: 100%; height: 400px;"></div>
+    </div>
+    <div class="row">
+        <h3>Runs</h3>
+        <table class="table">
+            <thead>
+                <tr>
+                    <th>Timestamp</th>
+                    <th>Message</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for run_timestamp, run_data in runs.items() %}
+                <tr>
+                    <td><code>{{run_timestamp}}</code></td>
+                    <td>{{run_data.run_message}}</td>
+                    <td><a href="/run/{{run_timestamp}}">View</a> / Delete</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<div>
+    <script>
+        loadJSONData("jobDetails", `{{job_json|safe}}`);
+    </script>
+</div>
+{% endblock %}

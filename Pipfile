@@ -9,6 +9,7 @@ docker = "*"
 pygit2 = "*"
 types-docker = "*"
 types-pygit2 = "*"
+flask = "*"
 
 [dev-packages]
 black = "*"
