@@ -1,9 +1,14 @@
+# ruff: noqa: PD901
+
+import json
 import random
 import time
 import warnings
 from pathlib import Path
 from unittest.mock import MagicMock
 
+import pandas as pd
+import pyarrow as pa
 import pytest
 from click.testing import CliRunner
 from freezegun import freeze_time
@@ -13,7 +18,7 @@ from abdiff.core.collate_ab_transforms import (
     TRANSFORMED_DATASET_SCHEMA,
     get_transformed_batches_iter,
 )
-from abdiff.core.utils import create_subdirectories, write_to_dataset
+from abdiff.core.utils import create_subdirectories, load_dataset, write_to_dataset
 
 
 class Container:
@@ -264,3 +269,36 @@ def webapp_client():
     app = create_app()
     with app.test_client() as client:
         yield client
+
+
+@pytest.fixture
+def collated_dataset_directory(run_directory):
+    """Simulate the outputs of core function collate_ab_transforms."""
+    dataset_directory = str(Path(run_directory) / "collated")
+    df = pd.DataFrame(
+        [
+            {
+                "timdex_record_id": "abc123",
+                "source": "alma",
+                "record_a": json.dumps({"color": "green", "number": 42}).encode(),
+                "record_b": json.dumps({"color": "red", "number": 42}).encode(),
+            },
+            {
+                "timdex_record_id": "def456",
+                "source": "dspace",
+                "record_a": json.dumps({"color": "blue", "number": 101}).encode(),
+                "record_b": json.dumps({"color": "blue", "number": 101}).encode(),
+            },
+        ]
+    )
+    write_to_dataset(
+        pa.Table.from_pandas(df),
+        base_dir=dataset_directory,
+        partition_columns=["source"],
+    )
+    return dataset_directory
+
+
+@pytest.fixture
+def collated_dataset(collated_dataset_directory):
+    return load_dataset(collated_dataset_directory)
