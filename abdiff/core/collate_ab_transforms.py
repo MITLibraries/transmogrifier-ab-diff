@@ -70,7 +70,7 @@ def collate_ab_transforms(
     return collated_dataset_path
 
 
-def yield_records(transformed_file: str | Path) -> Generator:
+def yield_records(transformed_file: str | Path) -> Generator[dict[str, str | bytes]]:
     """Yields data for every TIMDEX record in a transformed file.
 
     This function uses ijson to yield records from a JSON stream
@@ -89,8 +89,7 @@ def yield_records(transformed_file: str | Path) -> Generator:
         str(transformed_file)
     )
     with open(transformed_file) as file:
-        records = ijson.items(file, "item")
-        for record in records:
+        for record in ijson.items(file, "item"):
             yield {
                 "timdex_record_id": record["timdex_record_id"],
                 "source": record["source"],
@@ -102,7 +101,7 @@ def yield_records(transformed_file: str | Path) -> Generator:
 
 def get_transformed_batches_iter(
     run_directory: str, transformed_files: tuple[list[str], ...]
-) -> Generator:
+) -> Generator[pa.RecordBatch]:
     """Yield pyarrow.RecordBatch objects of TIMDEX records.
 
     This function will iterate over the A/B lists in 'transformed_files',
@@ -125,7 +124,7 @@ def get_transformed_batches_iter(
                 yield pa.RecordBatch.from_pylist(list(record_batch))
 
 
-def get_joined_batches_iter(dataset_directory: str) -> Generator:
+def get_joined_batches_iter(dataset_directory: str) -> Generator[pa.RecordBatch]:
     """Yield pyarrow.RecordBatch objects of joined TIMDEX A/B records.
 
     This function uses DuckDB to query the Parquet dataset of transformed
@@ -164,23 +163,24 @@ def get_joined_batches_iter(dataset_directory: str) -> Generator:
     """
     with duckdb.connect() as con:
         transformed_file_names = con.execute(
-            f"""
-            SELECT DISTINCT transformed_file_name FROM
-            read_parquet('{dataset_directory}/**/*.parquet', hive_partitioning=true)
             """
-        ).fetchall()[0]
+            SELECT DISTINCT transformed_file_name FROM
+            read_parquet($transformed_parquet_glob, hive_partitioning=true)
+            """,
+            {"transformed_parquet_glob": f"{dataset_directory}/**/*.parquet"},
+        ).fetch_df()["transformed_file_name"]
 
         for transformed_file in transformed_file_names:
             results = con.execute(
-                f"""
+                """
                 WITH
                     transformed_file AS (
                         SELECT * FROM
                         read_parquet(
-                            '{dataset_directory}/**/*.parquet',
+                            $transformed_parquet_glob,
                             hive_partitioning=true
                         )
-                        WHERE transformed_file_name='{transformed_file}'
+                        WHERE transformed_file_name=$transformed_file_name
                     ),
                     a AS (SELECT * FROM transformed_file WHERE version='a'),
                     b AS (SELECT * FROM transformed_file WHERE version='b')
@@ -191,14 +191,17 @@ def get_joined_batches_iter(dataset_directory: str) -> Generator:
                     b.record as record_b
                 FROM a
                 FULL OUTER JOIN b USING (timdex_record_id)
-                """
+                """,
+                {
+                    "transformed_parquet_glob": f"{dataset_directory}/**/*.parquet",
+                    "transformed_file_name": transformed_file,
+                },
             ).fetch_record_batch(READ_BATCH_SIZE)
 
             while True:
                 try:
                     yield results.read_next_batch()
                 except StopIteration:
-                    logger.info("Already fetched all batches.")
                     break
 
 
