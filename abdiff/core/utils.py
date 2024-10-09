@@ -2,7 +2,11 @@
 
 import json
 import os
+from collections.abc import Iterable
 from pathlib import Path
+
+import pyarrow as pa
+import pyarrow.dataset as ds
 
 from abdiff.config import Config
 
@@ -67,3 +71,51 @@ def create_subdirectories(
         os.makedirs(directory)
         directories.append(str(directory))
     return tuple(directories)
+
+
+def load_dataset(base_dir: str | Path) -> ds.Dataset:
+    """Standardized way of reading of parquet datasets in application."""
+    return ds.dataset(base_dir, partitioning="hive")
+
+
+def write_to_dataset(
+    data: (
+        ds.Dataset
+        | pa.Table
+        | pa.RecordBatch
+        | pa.RecordBatchReader
+        | list[pa.Table]
+        | Iterable[pa.RecordBatch]
+    ),
+    base_dir: str | Path,
+    schema: pa.Schema | None = None,
+    partition_columns: list[str] | None = None,
+) -> list[ds.WrittenFile]:
+    """Standardized way of writing to parquet datasets in application.
+
+    This ensures that all datasets written by core functions are writing them with a
+    similar structure and attention to row group and file size.
+
+    If an iterable of RecordBatches is passed as the data to write, a schema object must
+    also be provided, because a schema cannot be extracted or inferred from the lazily
+    evaluated generator.  All other types passed do not explicitly require a schema,
+    as it can be inferred.
+    """
+    written_files = []
+
+    ds.write_dataset(
+        data,
+        schema=schema,
+        base_dir=str(base_dir),
+        partitioning=partition_columns,
+        partitioning_flavor="hive",
+        format="parquet",
+        basename_template="records-{i}.parquet",
+        existing_data_behavior="delete_matching",
+        use_threads=True,
+        max_rows_per_group=1_000,
+        max_rows_per_file=100_000,
+        file_visitor=lambda written_file: written_files.append(written_file),
+    )
+
+    return written_files  # type: ignore[return-value] # mypy incorrect here
