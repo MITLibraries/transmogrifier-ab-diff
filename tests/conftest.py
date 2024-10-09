@@ -1,19 +1,26 @@
 # ruff: noqa: PD901
 
 import json
+import os
 import random
 import time
 import warnings
 from pathlib import Path
 from unittest.mock import MagicMock
 
+import duckdb
 import pandas as pd
 import pyarrow as pa
+import pyarrow.parquet as pq
 import pytest
 from click.testing import CliRunner
 from freezegun import freeze_time
 
-from abdiff.core import init_job, init_run
+from abdiff.core import calc_ab_diffs, init_job, init_run
+from abdiff.core.calc_ab_metrics import (
+    _prepare_duckdb_context,
+    create_record_diff_matrix_parquet,
+)
 from abdiff.core.collate_ab_transforms import (
     TRANSFORMED_DATASET_SCHEMA,
     get_transformed_batches_iter,
@@ -280,14 +287,37 @@ def collated_dataset_directory(run_directory):
             {
                 "timdex_record_id": "abc123",
                 "source": "alma",
-                "record_a": json.dumps({"color": "green", "number": 42}).encode(),
-                "record_b": json.dumps({"color": "red", "number": 42}).encode(),
+                "record_a": json.dumps(
+                    {"material": "concrete", "color": "green", "number": 42}
+                ).encode(),
+                "record_b": json.dumps(
+                    {"material": "concrete", "color": "red", "number": 42}
+                ).encode(),
             },
             {
                 "timdex_record_id": "def456",
                 "source": "dspace",
-                "record_a": json.dumps({"color": "blue", "number": 101}).encode(),
-                "record_b": json.dumps({"color": "blue", "number": 101}).encode(),
+                "record_a": json.dumps(
+                    {"material": "concrete", "color": "blue", "number": 101}
+                ).encode(),
+                "record_b": json.dumps(
+                    {"material": "concrete", "color": "blue", "number": 101}
+                ).encode(),
+            },
+            {
+                "timdex_record_id": "ghi789",
+                "source": "libguides",
+                "record_a": json.dumps(
+                    {
+                        "material": "concrete",
+                        "color": "purple",
+                        "number": 13,
+                        "fruit": "apple",
+                    }
+                ).encode(),
+                "record_b": json.dumps(
+                    {"material": "concrete", "color": "brown", "number": 99}
+                ).encode(),
             },
         ]
     )
@@ -302,3 +332,46 @@ def collated_dataset_directory(run_directory):
 @pytest.fixture
 def collated_dataset(collated_dataset_directory):
     return load_dataset(collated_dataset_directory)
+
+
+@pytest.fixture
+def metrics_directory(run_directory):
+    directory = Path(run_directory) / "metrics"
+    os.makedirs(directory, exist_ok=True)
+    return str(directory)
+
+
+@pytest.fixture
+def diffs_dataset_directory(run_directory, metrics_directory, collated_dataset_directory):
+    return calc_ab_diffs(run_directory, collated_dataset_directory)
+
+
+@pytest.fixture
+def diff_matrix_parquet_filepath(run_directory, diffs_dataset_directory):
+    return create_record_diff_matrix_parquet(run_directory, diffs_dataset_directory)
+
+
+@pytest.fixture
+def diff_matrix_parquet(diff_matrix_parquet_filepath):
+    return pq.ParquetFile(diff_matrix_parquet_filepath)
+
+
+@pytest.fixture
+def diff_matrix_df(diff_matrix_parquet) -> pd.DataFrame:
+    return diff_matrix_parquet.read().to_pandas()
+
+
+@pytest.fixture
+def function_duckdb_connection():
+    with duckdb.connect(":memory:") as conn:
+        yield conn
+
+
+@pytest.fixture
+def duckdb_context_with_diff_matrix(
+    function_duckdb_connection, diff_matrix_parquet_filepath
+):
+    fields, sources = _prepare_duckdb_context(
+        function_duckdb_connection, diff_matrix_parquet_filepath
+    )
+    return function_duckdb_connection, fields, sources

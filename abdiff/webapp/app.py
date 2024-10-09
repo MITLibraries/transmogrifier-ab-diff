@@ -72,12 +72,10 @@ def create_app() -> Flask:
         except FileNotFoundError:
             transform_logs = "'logs.txt' not found for transform logs"
 
-        # load run metrics
-        try:
-            with open(run_directory / "metrics.json") as f:
-                metrics = json.load(f)
-        except FileNotFoundError:
-            metrics = {"note": "'metrics.json' not found in run directory"}
+        # parse run metrics
+        metrics = run_data.get(
+            "metrics", {"warning": "'metrics' section not found in run data"}
+        )
 
         return render_template(
             "run.html",

@@ -65,7 +65,7 @@ def test_calc_ab_diffs_writes_dataset(caplog, run_directory, collated_dataset_di
     diffs_dataset = load_dataset(Path(run_directory) / "diffs")
 
     assert "wrote 2 parquet files to diffs dataset" in caplog.text
-    assert diffs_dataset.count_rows() == 2
+    assert diffs_dataset.count_rows() == 3
     assert diffs_dataset.schema == pa.schema(
         (
             pa.field("timdex_record_id", pa.string()),
