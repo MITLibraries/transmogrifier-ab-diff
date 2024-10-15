@@ -14,8 +14,6 @@ pygit2 = "*"
 types-docker = "*"
 types-pygit2 = "*"
 flask = "*"
-pyarrow = "*"
-pandas = "*"
 jsondiff = "*"
 
 [dev-packages]
@@ -30,7 +28,6 @@ pytest = "*"
 ruff = "*"
 setuptools = "*"
 pandas-stubs = "*"
-pyarrow-stubs = "*"
 
 [requires]
 python_version = "3.12"
