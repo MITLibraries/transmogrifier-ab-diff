@@ -16,26 +16,26 @@ logger = logging.getLogger(__name__)
 
 READ_BATCH_SIZE = 1_000
 TRANSFORMED_DATASET_SCHEMA = pa.schema(
-    [
+    (
         pa.field("timdex_record_id", pa.string()),
         pa.field("source", pa.string()),
         pa.field("record", pa.binary()),
         pa.field("version", pa.string()),
         pa.field("transformed_file_name", pa.string()),
-    ]
+    )
 )
 JOINED_DATASET_SCHEMA = pa.schema(
-    [
+    (
         pa.field("timdex_record_id", pa.string()),
         pa.field("source", pa.string()),
         pa.field("record_a", pa.binary()),
         pa.field("record_b", pa.binary()),
-    ]
+    )
 )
 
 
 def collate_ab_transforms(
-    run_directory: str, transformed_files: tuple[list[str], ...]
+    run_directory: str, ab_transformed_file_lists: tuple[list[str], ...]
 ) -> str:
     """Collates A/B transformed files into a Parquet dataset.
 
@@ -52,7 +52,7 @@ def collate_ab_transforms(
     collated_dataset_path = str(Path(run_directory) / "collated")
 
     transformed_written_files = write_to_dataset(
-        get_transformed_batches_iter(run_directory, transformed_files),
+        get_transformed_batches_iter(run_directory, ab_transformed_file_lists),
         schema=TRANSFORMED_DATASET_SCHEMA,
         base_dir=transformed_dataset_path.name,
         partition_columns=["transformed_file_name"],
@@ -70,7 +70,9 @@ def collate_ab_transforms(
     return collated_dataset_path
 
 
-def yield_records(transformed_file: str | Path) -> Generator[dict[str, str | bytes]]:
+def get_transformed_records_iter(
+    transformed_file: str | Path,
+) -> Generator[dict[str, str | bytes]]:
     """Yields data for every TIMDEX record in a transformed file.
 
     This function uses ijson to yield records from a JSON stream
@@ -88,7 +90,7 @@ def yield_records(transformed_file: str | Path) -> Generator[dict[str, str | byt
     version, transformed_file_name = parse_parquet_details_from_transformed_file(
         str(transformed_file)
     )
-    with open(transformed_file) as file:
+    with open(transformed_file, "rb") as file:
         for record in ijson.items(file, "item"):
             yield {
                 "timdex_record_id": record["timdex_record_id"],
@@ -100,24 +102,24 @@ def yield_records(transformed_file: str | Path) -> Generator[dict[str, str | byt
 
 
 def get_transformed_batches_iter(
-    run_directory: str, transformed_files: tuple[list[str], ...]
+    run_directory: str, ab_transformed_file_lists: tuple[list[str], ...]
 ) -> Generator[pa.RecordBatch]:
     """Yield pyarrow.RecordBatch objects of TIMDEX records.
 
     This function will iterate over the A/B lists in 'transformed_files',
-    calling yield_records() to fetch dictionaries describing
+    calling get_transformed_records_iter() to fetch dictionaries describing
     TIMDEX records and compiling the dictionaries into a
     pyarrow.RecordBatch. The size of a batch is set by the
     'READ_BATCH_SIZE' global variable.
 
     The function returns a generator, yielding batches of the dictionaries
-    from yield_records(). The returned generator can be passed to
+    from get_transformed_records_iter(). The returned generator can be passed to
     abdiff.core.utils.write_to_dataset() to perform batch writes to
     a Parquet dataset.
     """
-    for transformed_files_list in transformed_files:
-        for transformed_file in transformed_files_list:
-            record_iter = yield_records(
+    for transformed_files in ab_transformed_file_lists:
+        for transformed_file in transformed_files:
+            record_iter = get_transformed_records_iter(
                 transformed_file=Path(run_directory) / transformed_file
             )
             for record_batch in itertools.batched(record_iter, READ_BATCH_SIZE):

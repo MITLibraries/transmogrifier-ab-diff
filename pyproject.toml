@@ -11,7 +11,7 @@ disallow_untyped_defs = true
 exclude = ["tests/"]
 
 [[tool.mypy.overrides]]
-module = ["docker", "docker.models.containers", "ijson", "pyarrow", "pyarrow.dataset"]
+module = ["docker", "docker.models.containers", "ijson"]
 ignore_missing_imports = true
 
 [tool.pytest.ini_options]

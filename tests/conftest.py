@@ -117,15 +117,22 @@ def example_transformed_directory(example_run_directory):
 
 
 @pytest.fixture
-def example_transformed_filename():
-    return "alma-2024-08-29-daily-transformed-records-to-index.json"
-
-
-@pytest.fixture
-def example_transformed_files(example_transformed_filename):
+def example_ab_transformed_file_lists():
+    transformed_directory_a = Path("transformed/a")
+    transformed_directory_b = Path("transformed/b")
     return (
-        [Path("transformed/a") / example_transformed_filename],
-        [Path("transformed/b") / example_transformed_filename],
+        [
+            transformed_directory_a
+            / "alma-2024-08-29-daily-transformed-records-to-index.json",
+            transformed_directory_a
+            / "dspace-2024-10-14-daily-transformed-records-to-index.json",
+        ],
+        [
+            transformed_directory_b
+            / "alma-2024-08-29-daily-transformed-records-to-index.json",
+            transformed_directory_b
+            / "dspace-2024-10-14-daily-transformed-records-to-index.json",
+        ],
     )
 
 
@@ -166,10 +173,12 @@ def create_transformed_directories(run_directory):
 
 @pytest.fixture
 def transformed_parquet_dataset(
-    tmp_path, example_run_directory, example_transformed_files
+    tmp_path, example_run_directory, example_ab_transformed_file_lists
 ):
     write_to_dataset(
-        get_transformed_batches_iter(example_run_directory, example_transformed_files),
+        get_transformed_batches_iter(
+            example_run_directory, example_ab_transformed_file_lists
+        ),
         schema=TRANSFORMED_DATASET_SCHEMA,
         base_dir=tmp_path,
         partition_columns=["transformed_file_name"],
