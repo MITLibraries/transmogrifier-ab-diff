@@ -3,6 +3,7 @@
 import json
 import os
 import random
+import shutil
 import time
 import warnings
 from pathlib import Path
@@ -115,8 +116,12 @@ def job_directory(tmp_path):
 
 
 @pytest.fixture
-def example_job_directory():
-    return "tests/fixtures/jobs/example-job-1"
+def example_job_directory(tmp_path):
+    """Copy example job from fixtures to tmp path where it will be modified during test"""
+    source_dir = Path("tests/fixtures/jobs/example-job-1")
+    dest_dir = tmp_path / "example-job-1"
+    shutil.copytree(source_dir, dest_dir)
+    return dest_dir
 
 
 @pytest.fixture
