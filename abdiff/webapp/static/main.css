@@ -1,0 +1,7 @@
+.container {
+    width:90%;
+    max-width: unset;
+}
+.row {
+    margin-top:20px;
+}

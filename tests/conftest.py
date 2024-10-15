@@ -89,6 +89,7 @@ class MockedContainerRun:
 @pytest.fixture(autouse=True)
 def _test_env(monkeypatch, tmp_path):
     monkeypatch.setenv("WORKSPACE", "test")
+    monkeypatch.setenv("JOB_DIRECTORY", "tests/fixtures/jobs/example-job-1")
 
 
 @pytest.fixture
@@ -244,3 +245,22 @@ def mocked_docker_container_b():
 @pytest.fixture
 def mocked_container_runs_iter():
     return MockedContainerRun()
+
+
+@pytest.fixture
+def webapp_job_directory():
+    return "tests/fixtures/jobs/example-job-1"
+
+
+@pytest.fixture
+def webapp_run_timestamp():
+    return "2024-01-01_12-00-00"
+
+
+@pytest.fixture
+def webapp_client():
+    from abdiff.webapp.app import create_app
+
+    app = create_app()
+    with app.test_client() as client:
+        yield client
