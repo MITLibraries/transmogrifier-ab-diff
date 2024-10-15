@@ -86,14 +86,14 @@ Options:
 ```
 
 ### `abdiff init-job`
-```
+```text
 Usage: -c init-job [OPTIONS]
 
   Initialize a new Job.
 
 Options:
+  -d, --job-directory TEXT  Job directory to create.  [required]
   -m, --message TEXT        Message to describe Job.
-  -d, --job-directory TEXT  Job working directory to create.  [required]
   -a, --commit-sha-a TEXT   Transmogrifier commit SHA for version 'A'
                             [required]
   -b, --commit-sha-b TEXT   Transmogrifier commit SHA for version 'B'
@@ -101,6 +101,16 @@ Options:
   -h, --help                Show this message and exit.
 ```
 
+### `abdiff view-job`
+```text
+Usage: -c view-job [OPTIONS]
+
+  Start flask app to view Job and Runs.
+
+Options:
+  -d, --job-directory TEXT  Job directory to view in webapp.  [required]
+  -h, --help                Show this message and exit.
+```
 
 ## Development
 

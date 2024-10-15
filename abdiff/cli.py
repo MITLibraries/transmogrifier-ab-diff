@@ -1,6 +1,5 @@
 import json
 import logging
-from collections.abc import Callable
 from datetime import timedelta
 from time import perf_counter
 
@@ -11,6 +10,7 @@ from abdiff.config import configure_logger
 from abdiff.core import build_ab_images
 from abdiff.core import init_job as core_init_job
 from abdiff.core.utils import read_job_json
+from abdiff.webapp.app import app
 
 logger = logging.getLogger(__name__)
 
@@ -57,30 +57,22 @@ def ping() -> None:
     click.echo("pong")
 
 
-def shared_job_options(cli_command: Callable) -> Callable:
-    """Decorator to provide shared CLI arguments to Job related commands."""
-    cli_command = click.option(
-        "-d",
-        "--job-directory",
-        type=str,
-        required=True,
-        help="Job working directory to create.",
-    )(cli_command)
-
-    cli_command = click.option(
-        "-m",
-        "--message",
-        type=str,
-        required=False,
-        help="Message to describe Job.",
-        default="Not provided.",
-    )(cli_command)
-
-    return cli_command  # noqa: RET504
-
-
 @main.command()
-@shared_job_options
+@click.option(
+    "-d",
+    "--job-directory",
+    type=str,
+    required=True,
+    help="Job directory to create.",
+)
+@click.option(
+    "-m",
+    "--message",
+    type=str,
+    required=False,
+    help="Message to describe Job.",
+    default="Not provided.",
+)
 @click.option(
     "-a",
     "--commit-sha-a",
@@ -97,9 +89,9 @@ def shared_job_options(cli_command: Callable) -> Callable:
 )
 def init_job(
     job_directory: str,
+    message: str,
     commit_sha_a: str,
     commit_sha_b: str,
-    message: str,
 ) -> None:
     """Initialize a new Job."""
     try:
@@ -118,3 +110,20 @@ def init_job(
 
     job_json = json.dumps(read_job_json(job_directory), indent=2)
     logger.info(f"Job initialized: {job_json}")
+
+
+@main.command()
+@click.option(
+    "-d",
+    "--job-directory",
+    type=str,
+    required=True,
+    help="Job directory to view in webapp.",
+)
+def view_job(
+    job_directory: str,
+) -> None:
+    """Start flask app to view Job and Runs."""
+    logger.info(f"Starting flask webapp for job directory: {job_directory}")
+    app.config.update(JOB_DIRECTORY=job_directory)
+    app.run()

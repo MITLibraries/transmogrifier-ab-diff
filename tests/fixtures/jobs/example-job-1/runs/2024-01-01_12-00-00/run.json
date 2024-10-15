@@ -2,5 +2,6 @@
   "job_directory": "tests/fixtures/jobs/example-job-1",
   "job_message": "I am an example job.",
   "run_directory": "tests/fixtures/jobs/example-job-1/runs/2024-01-01_12-00-00",
-  "run_message": "I am an example run 1"
+  "run_message": "I am an example run 1",
+  "run_timestamp": "2024-01-01_12-00-00"
 }
