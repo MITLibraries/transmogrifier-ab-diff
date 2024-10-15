@@ -29,8 +29,8 @@ def test_run_ab_transforms_success(
     )
     run_ab_transforms(
         run_directory=run_directory,
-        image_name_a="transmogrifier-example-job-1-abc123:latest",
-        image_name_b="transmogrifier-example-job-1-def456:latest",
+        image_tag_a="transmogrifier-example-job-1-abc123:latest",
+        image_tag_b="transmogrifier-example-job-1-def456:latest",
         input_files=[
             "s3://timdex-extract-dev/source/source-2024-01-01-daily-extracted-records-to-index.xml"
         ],

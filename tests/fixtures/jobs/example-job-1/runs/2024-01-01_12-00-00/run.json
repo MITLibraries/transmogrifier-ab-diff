@@ -4,6 +4,10 @@
   "run_directory": "tests/fixtures/jobs/example-job-1/runs/2024-01-01_12-00-00",
   "run_message": "I am an example run 1",
   "run_timestamp": "2024-01-01_12-00-00",
+  "input_files": [
+    "s3://path/to/files/alma.xml",
+    "s3://path/to/files/dspace.xml"
+  ],
   "metrics": {
     "summary": {
       "total_records": 10,

@@ -20,13 +20,15 @@ NON_TIMDEX_FIELD_COLUMNS = ["timdex_record_id", "source"]
 
 def calc_ab_metrics(
     run_directory: str,
-    diffs_dataset: str,
+    diffs_dataset_path: str,
 ) -> dict:
 
     os.makedirs(Path(run_directory) / "metrics", exist_ok=True)
 
     # build field diffs dataframe
-    field_matrix_parquet = create_record_diff_matrix_parquet(run_directory, diffs_dataset)
+    field_matrix_parquet = create_record_diff_matrix_parquet(
+        run_directory, diffs_dataset_path
+    )
 
     # calculate metrics data from sparse matrix
     metrics_data = calculate_metrics_data(field_matrix_parquet)

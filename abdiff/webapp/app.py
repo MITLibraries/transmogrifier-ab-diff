@@ -3,6 +3,7 @@ import json
 import logging
 import os
 import signal
+from datetime import datetime
 from pathlib import Path
 
 from flask import Flask, g, render_template
@@ -60,6 +61,14 @@ def create_app() -> Flask:
             with open(run_json_filepath) as f:
                 run_data = json.load(f)
             runs[run_data["run_timestamp"]] = run_data
+        dict(
+            sorted(
+                runs.items(),
+                key=lambda x: datetime.strptime(  # noqa: DTZ007
+                    x[0], "%Y-%m-%d_%H-%M-%S"
+                ),
+            )
+        )
 
         return render_template(
             "job.html",

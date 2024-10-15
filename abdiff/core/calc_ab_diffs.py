@@ -44,7 +44,7 @@ def calc_ab_diffs(run_directory: str, collated_dataset_path: str) -> str:
     )
     logger.info(f"wrote {len(written_files)} parquet files to diffs dataset")
 
-    update_or_create_run_json(run_directory, {"diffs_dataset": str(diffs_dataset)})
+    update_or_create_run_json(run_directory, {"diffs_dataset_path": str(diffs_dataset)})
 
     logger.info(f"calc_ab_diffs complete, elapsed: {time.time()-t0}")
     return str(diffs_dataset)
