@@ -11,7 +11,7 @@ disallow_untyped_defs = true
 exclude = ["tests/", "output/"]
 
 [[tool.mypy.overrides]]
-module = ["docker", "docker.models.containers", "duckdb", "duckdb.duckdb", "jsondiff", "pandas", "jsondiff"]
+module = ["docker", "docker.models.containers", "duckdb", "duckdb.duckdb", "jsondiff", "pandas", "jsondiff", "ijson"]
 ignore_missing_imports = true
 
 [tool.pytest.ini_options]

@@ -21,6 +21,21 @@
         <h3>Diff Metrics</h3>
         <div id="runMetrics" style="width: 100%; margin-bottom:50px;"></div>
     </div>
+    <div class="row">
+        <h3>Record Links</h3>
+        <h4>Fields with diffs</h4>
+        <ul style="margin-left:40px;">
+            {% for field,link in sample_links.field_samples.items() %}
+            <li><code><a href="{{link}}">{{field}}</a></code> ({{run_data.metrics.analysis.by_field[field].count}})</li>
+            {% endfor %}
+        </ul>
+        <h4>Sources with diffs</h4>
+        <ul style="margin-left:40px;">
+            {% for source,link in sample_links.source_samples.items() %}
+                <li><code><a href="{{link}}">{{source}}</a></code> ({{run_data.metrics.analysis.by_source[source].count}})</li>
+            {% endfor %}
+        </ul>
+    </div>
 </div>
 
 <div>

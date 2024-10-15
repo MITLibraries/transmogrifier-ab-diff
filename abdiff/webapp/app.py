@@ -7,6 +7,16 @@ from pathlib import Path
 
 from flask import Flask, g, render_template
 
+from abdiff.core.utils import read_run_json
+from abdiff.webapp.utils import (
+    get_field_sample_records,
+    get_record_a_b_versions,
+    get_record_field_diff_summary,
+    get_record_unified_diff_string,
+    get_run_directory,
+    get_source_sample_records,
+)
+
 logger = logging.getLogger(__name__)
 
 
@@ -60,14 +70,12 @@ def create_app() -> Flask:
     @app.route("/run/<run_timestamp>", methods=["GET"])
     def run(run_timestamp: str) -> str:
         """Primary route for a Run."""
-        run_directory = Path(g.job_directory) / "runs" / run_timestamp
-        # load run JSON data
-        with open(run_directory / "run.json") as f:
-            run_data = json.load(f)
+        run_directory = get_run_directory(run_timestamp)
+        run_data = read_run_json(run_directory)
 
         # load transform logs
         try:
-            with open(run_directory / "transformed/logs.txt") as f:
+            with open(Path(run_directory) / "transformed/logs.txt") as f:
                 transform_logs = f.read()
         except FileNotFoundError:
             transform_logs = "'logs.txt' not found for transform logs"
@@ -77,12 +85,82 @@ def create_app() -> Flask:
             "metrics", {"warning": "'metrics' section not found in run data"}
         )
 
+        # generate links for field and source samples
+        field_samples = {
+            field: f"http://localhost:5000/run/{run_timestamp}/sample/field/{field}"
+            for field in metrics["summary"]["fields_with_diffs"]
+        }
+        source_samples = {
+            source: f"http://localhost:5000/run/{run_timestamp}/sample/source/{source}"
+            for source in metrics["summary"]["sources"]
+        }
+        sample_links = {
+            "field_samples": field_samples,
+            "source_samples": source_samples,
+        }
+
         return render_template(
             "run.html",
             run_data=run_data,
             run_json=json.dumps(run_data),
             transform_logs=transform_logs,
             metrics_json=json.dumps(metrics),
+            sample_links=sample_links,
+        )
+
+    @app.route(
+        "/run/<run_timestamp>/sample/<sample_type>/<sample_value>", methods=["GET"]
+    )
+    def run_sample(run_timestamp: str, sample_type: str, sample_value: str) -> str:
+        """Route to provide links to record views based on a subset of detected diffs."""
+        run_directory = get_run_directory(run_timestamp)
+
+        # get sample records
+        if sample_type == "field":
+            sample_df = get_field_sample_records(run_directory, sample_value)
+        elif sample_type == "source":
+            sample_df = get_source_sample_records(run_directory, sample_value)
+        else:
+            raise ValueError(  # noqa: TRY003
+                f"Sample type: '{sample_type}' not recognized"
+            )
+        sample_df["record_link"] = sample_df.timdex_record_id.apply(
+            lambda timdex_record_id: (
+                f"http://localhost:5000/run/{run_timestamp}/record/{timdex_record_id}"
+            )
+        )
+        sample_df = sample_df.sort_values(by=["source", "timdex_record_id"])
+
+        return render_template(
+            "sample.html",
+            sample_type=sample_type,
+            sample_value=sample_value,
+            sample_df=sample_df,
+        )
+
+    @app.route("/run/<run_timestamp>/record/<timdex_record_id>", methods=["GET"])
+    def record(run_timestamp: str, timdex_record_id: str) -> str:
+        """Record view."""
+        run_directory = get_run_directory(run_timestamp)
+
+        # get record A and B versions
+        a, b = get_record_a_b_versions(run_directory, timdex_record_id)
+
+        # build summary of record
+        summary = get_record_field_diff_summary(run_directory, timdex_record_id)
+        summary["fields_only_in_a"] = list(set(a.keys()).difference(set(b.keys())))
+        summary["fields_only_in_b"] = list(set(b.keys()).difference(set(a.keys())))
+
+        # get unified diff string of record
+        diff_str = get_record_unified_diff_string(a, b)
+
+        return render_template(
+            "record.html",
+            timdex_record_id=timdex_record_id,
+            summary=json.dumps(summary),
+            a_json=json.dumps(a),
+            b_json=json.dumps(b),
+            diff_str=diff_str,
         )
 
     @app.route("/shutdown", methods=["GET"])
