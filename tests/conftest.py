@@ -9,7 +9,11 @@ from click.testing import CliRunner
 from freezegun import freeze_time
 
 from abdiff.core import init_job, init_run
-from abdiff.core.utils import create_subdirectories
+from abdiff.core.collate_ab_transforms import (
+    TRANSFORMED_DATASET_SCHEMA,
+    get_transformed_batches_iter,
+)
+from abdiff.core.utils import create_subdirectories, write_to_dataset
 
 
 class Container:
@@ -103,6 +107,36 @@ def example_job_directory():
 
 
 @pytest.fixture
+def example_run_directory(example_job_directory):
+    return str(Path(example_job_directory) / "runs/2024-01-01_12-00-00")
+
+
+@pytest.fixture
+def example_transformed_directory(example_run_directory):
+    return str(Path(example_run_directory) / "transformed")
+
+
+@pytest.fixture
+def example_ab_transformed_file_lists():
+    transformed_directory_a = Path("transformed/a")
+    transformed_directory_b = Path("transformed/b")
+    return (
+        [
+            transformed_directory_a
+            / "alma-2024-08-29-daily-transformed-records-to-index.json",
+            transformed_directory_a
+            / "dspace-2024-10-14-daily-transformed-records-to-index.json",
+        ],
+        [
+            transformed_directory_b
+            / "alma-2024-08-29-daily-transformed-records-to-index.json",
+            transformed_directory_b
+            / "dspace-2024-10-14-daily-transformed-records-to-index.json",
+        ],
+    )
+
+
+@pytest.fixture
 def job(job_directory):
     return init_job(job_directory)
 
@@ -135,6 +169,21 @@ def create_transformed_directories(run_directory):
     return create_subdirectories(
         base_directory=run_directory, subdirectories=["transformed/a", "transformed/b"]
     )
+
+
+@pytest.fixture
+def transformed_parquet_dataset(
+    tmp_path, example_run_directory, example_ab_transformed_file_lists
+):
+    write_to_dataset(
+        get_transformed_batches_iter(
+            example_run_directory, example_ab_transformed_file_lists
+        ),
+        schema=TRANSFORMED_DATASET_SCHEMA,
+        base_dir=tmp_path,
+        partition_columns=["transformed_file_name"],
+    )
+    return tmp_path
 
 
 @pytest.fixture

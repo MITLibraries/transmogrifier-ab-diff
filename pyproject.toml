@@ -11,7 +11,7 @@ disallow_untyped_defs = true
 exclude = ["tests/"]
 
 [[tool.mypy.overrides]]
-module = ["docker", "docker.models.containers"]
+module = ["docker", "docker.models.containers", "ijson"]
 ignore_missing_imports = true
 
 [tool.pytest.ini_options]
@@ -51,7 +51,8 @@ ignore = [
     "PLR0913", 
     "PLR0915",
     "S320",
-    "S321", 
+    "S321",
+    "S608",
 ]
 
 # allow autofix behavior for specified rules
