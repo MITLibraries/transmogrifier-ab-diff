@@ -10,6 +10,10 @@ class Config:
         "AWS_SESSION_TOKEN",
         "WORKSPACE",
     )
+    OPTIONAL_ENV_VARS = (
+        "WEBAPP_HOST",
+        "WEBAPP_PORT",
+    )
 
     def __getattr__(self, name: str) -> Any:  # noqa: ANN401
         """Method to raise exception if required env vars not set."""
@@ -17,6 +21,15 @@ class Config:
             return os.getenv(name)
         message = f"'{name}' not a valid configuration variable"
         raise AttributeError(message)
+
+    @property
+    def webapp_host(self) -> str:
+        return self.WEBAPP_HOST or "localhost"
+
+    @property
+    def webapp_port(self) -> int:
+        port = self.WEBAPP_PORT or "5000"
+        return int(port)
 
 
 def configure_logger(logger: logging.Logger, *, verbose: bool) -> str:

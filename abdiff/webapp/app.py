@@ -6,7 +6,7 @@ import signal
 from datetime import datetime
 from pathlib import Path
 
-from flask import Flask, g, render_template
+from flask import Flask, g, render_template, request
 
 from abdiff.core.utils import read_run_json
 from abdiff.webapp.utils import (
@@ -96,11 +96,11 @@ def create_app() -> Flask:
 
         # generate links for field and source samples
         field_samples = {
-            field: f"http://localhost:5000/run/{run_timestamp}/sample/field/{field}"
+            field: f"http://{request.host}/run/{run_timestamp}/sample/field/{field}"
             for field in metrics["summary"]["fields_with_diffs"]
         }
         source_samples = {
-            source: f"http://localhost:5000/run/{run_timestamp}/sample/source/{source}"
+            source: f"http://{request.host}/run/{run_timestamp}/sample/source/{source}"
             for source in metrics["summary"]["sources"]
         }
         sample_links = {
@@ -135,7 +135,7 @@ def create_app() -> Flask:
             )
         sample_df["record_link"] = sample_df.timdex_record_id.apply(
             lambda timdex_record_id: (
-                f"http://localhost:5000/run/{run_timestamp}/record/{timdex_record_id}"
+                f"http://{request.host}/run/{run_timestamp}/record/{timdex_record_id}"
             )
         )
         sample_df = sample_df.sort_values(by=["source", "timdex_record_id"])

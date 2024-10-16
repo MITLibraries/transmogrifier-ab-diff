@@ -101,7 +101,33 @@ def test_view_job_webapp_configured_and_run_success(
         )
 
     assert app.config["JOB_DIRECTORY"] == job_directory
-    assert f"Starting flask webapp for job directory: {job_directory}" in caplog.text
+    assert f"Starting flask webapp for job directory: '{job_directory}'" in caplog.text
+    mocked_run.assert_called()
+
+
+def test_view_job_webapp_host_and_port_configurable(
+    monkeypatch,
+    caplog,
+    runner,
+):
+    host, port = "127.0.0.1", "9999"
+    monkeypatch.setenv("WEBAPP_HOST", host)
+    monkeypatch.setenv("WEBAPP_PORT", port)
+    job_directory = "tests/fixtures/jobs/example-job-1"
+
+    with patch.object(app, "run") as mocked_run:
+        mocked_run.run.return_value = None
+        _result = runner.invoke(
+            main,
+            [
+                "--verbose",
+                "view-job",
+                f"--job-directory={job_directory}",
+            ],
+        )
+
+    assert app.config["JOB_DIRECTORY"] == job_directory
+    assert f"available at: http://{host}:{port}" in caplog.text
     mocked_run.assert_called()
 
 

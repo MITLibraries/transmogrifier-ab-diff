@@ -6,7 +6,7 @@ from time import perf_counter
 import click
 from click.exceptions import ClickException
 
-from abdiff.config import configure_logger
+from abdiff.config import Config, configure_logger
 from abdiff.core import (
     build_ab_images,
     calc_ab_diffs,
@@ -173,6 +173,11 @@ def view_job(
     job_directory: str,
 ) -> None:
     """Start flask app to view Job and Runs."""
-    logger.info(f"Starting flask webapp for job directory: {job_directory}")
+    config = Config()
+    logger.info(
+        f"Starting flask webapp for job directory: '{job_directory}', "
+        f"available at: http://{config.webapp_host}:{config.webapp_port}"
+    )
     app.config.update(JOB_DIRECTORY=job_directory)
-    app.run()
+    logger.info("")
+    app.run(host=config.webapp_host, port=config.webapp_port)
