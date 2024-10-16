@@ -10,6 +10,7 @@ from pathlib import Path
 from time import perf_counter
 
 import docker
+import smart_open
 from docker.models.containers import Container
 
 from abdiff.config import Config
@@ -22,10 +23,12 @@ logger = logging.getLogger(__name__)
 
 
 def run_ab_transforms(
+    job_directory: str,
     run_directory: str,
     image_tag_a: str,
     image_tag_b: str,
     input_files: list[str],
+    download_files: bool = False,
     docker_client: docker.client.DockerClient | None = None,
     timeout: int = 600,
 ) -> tuple[list[str], ...]:
@@ -87,19 +90,22 @@ def run_ab_transforms(
         (image_tag_b, transformed_directory_b),
     ]
 
-    containers = []
-    for input_file in input_files:
-        source, output_file = parse_transform_details_from_extract_filename(input_file)
-        for docker_image, transformed_directory in run_configs:
-            container = run_docker_container(
-                docker_image,
-                transformed_directory,
-                source,
-                input_file,
-                output_file,
-                docker_client,
-            )
-            containers.append(container)
+    if download_files:
+        extract_files_directory = str(Path(job_directory) / "extract_files")
+        try:
+            os.makedirs(extract_files_directory)
+            logger.info(f"Extract files directory created: {extract_files_directory}")
+        except OSError:
+            logger.info("Extract files directory already exists")
+
+        downloaded_input_files = download_extract_files(
+            extract_files_directory, input_files
+        )
+        containers = transform_extract_files(
+            downloaded_input_files, run_configs, docker_client, extract_files_directory
+        )
+    else:
+        containers = transform_extract_files(input_files, run_configs, docker_client)
 
     wait_for_containers(containers, timeout)
     logger.info(f"All {len(containers)} containers have exited.")
@@ -119,6 +125,44 @@ def run_ab_transforms(
     return transformed_files
 
 
+def download_extract_files(download_directory: str, input_files: list[str]):
+    files = []
+    for input_file in input_files:
+        input_filename = input_file.split("/")[-1]
+        download_path = str(Path(download_directory) / input_filename)
+        if not os.path.exists(download_path):
+            with smart_open.open(input_file, "rb") as file:
+                with open(download_path, "wb") as local_file:
+                    local_file.write(file.read())
+        else:
+            logger.info(f"Extract file already exists: {download_path}")
+        files.append(input_filename)
+    return files
+
+
+def transform_extract_files(
+    input_files: list[str],
+    run_configs: list[tuple[str, ...]],
+    docker_client: docker.client.DockerClient,
+    extract_files_directory: str | None = None,
+) -> list[Container]:
+    containers = []
+    for input_file in input_files:
+        source, output_file = parse_transform_details_from_extract_filename(input_file)
+        for docker_image, transformed_directory in run_configs:
+            container = run_docker_container(
+                docker_image,
+                transformed_directory,
+                source,
+                input_file,
+                output_file,
+                docker_client,
+                extract_files_directory,
+            )
+            containers.append(container)
+    return containers
+
+
 def run_docker_container(
     docker_image: str,
     transformed_directory: str,
@@ -126,13 +170,33 @@ def run_docker_container(
     input_file: str,
     output_file: str,
     docker_client: docker.client.DockerClient,
+    extract_files_directory: str | None = None,
 ) -> Container:
     """Run transmogrifier via Docker container to transform input file."""
+
+    input_file_prefix = ""
+    volumes = {
+        os.path.abspath(transformed_directory): {
+            "bind": "/tmp/output_files/",
+            "mode": "rw",
+        }
+    }
+    if extract_files_directory:
+        input_file_prefix = "/tmp/extract_files/"
+        volumes.update(
+            {
+                os.path.abspath(extract_files_directory): {
+                    "bind": "/tmp/extract_files/",
+                    "mode": "ro",
+                }
+            }
+        )
+
     container = docker_client.containers.run(
         docker_image,
         command=[
-            f"--input-file={input_file}",
-            f"--output-file=/tmp/{output_file}",
+            f"--input-file={input_file_prefix}{input_file}",
+            f"--output-file=/tmp/output_files/{output_file}",
             f"--source={source}",
         ],
         detach=True,
@@ -146,7 +210,7 @@ def run_docker_container(
             "source": source,
             "input_file": input_file,
         },
-        volumes=[f"{os.path.abspath(transformed_directory)}:/tmp"],
+        volumes=volumes,
     )
     logger.info(
         f"Container '{container.id}' (Docker image: {docker_image}) "

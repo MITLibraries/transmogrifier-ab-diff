@@ -134,7 +134,12 @@ def init_job(
     required=True,
     help="Input files to transform.",
 )
-def run_diff(job_directory: str, input_files: str) -> None:
+@click.option(
+    "--download-files",
+    is_flag=True,
+    help="Pass to download extract files to job directory.",
+)
+def run_diff(job_directory: str, input_files: str, download_files: bool) -> None:
 
     job_data = read_job_json(job_directory)
     run_directory = init_run(job_directory)
@@ -142,10 +147,12 @@ def run_diff(job_directory: str, input_files: str) -> None:
     input_files_list = [filepath.strip() for filepath in input_files.split(",")]
 
     ab_transformed_file_lists = run_ab_transforms(
+        job_directory=job_directory,
         run_directory=run_directory,
         image_tag_a=job_data["image_tag_a"],
         image_tag_b=job_data["image_tag_b"],
         input_files=input_files_list,
+        download_files=download_files,
     )
     collated_dataset_path = collate_ab_transforms(
         run_directory=run_directory,

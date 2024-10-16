@@ -11,6 +11,7 @@ ijson = "*"
 pandas = "*"
 pyarrow = "*"
 pygit2 = "*"
+smart-open = {version = "*", extras = ["s3"]}
 types-docker = "*"
 types-pygit2 = "*"
 flask = "*"
