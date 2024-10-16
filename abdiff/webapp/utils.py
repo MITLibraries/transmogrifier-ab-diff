@@ -50,7 +50,7 @@ def get_record_unified_diff_string(record_a: dict, record_b: dict) -> str:
         n=10_000,  # ensure full records are shown
         lineterm="",
     )
-    return """diff --git a/record.json b/record.json""" + "\n".join(diff_iter)
+    return """diff --git a/record_a.json b/record_b.json""" + "\n".join(diff_iter)
 
 
 def duckdb_query_run_metrics(
