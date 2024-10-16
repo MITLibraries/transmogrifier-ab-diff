@@ -12,7 +12,6 @@ from unittest.mock import MagicMock
 import duckdb
 import pandas as pd
 import pyarrow as pa
-import pyarrow.parquet as pq
 import pytest
 from click.testing import CliRunner
 from freezegun import freeze_time
@@ -20,7 +19,7 @@ from freezegun import freeze_time
 from abdiff.core import calc_ab_diffs, init_job, init_run
 from abdiff.core.calc_ab_metrics import (
     _prepare_duckdb_context,
-    create_record_diff_matrix_parquet,
+    create_record_diff_matrix_dataset,
 )
 from abdiff.core.collate_ab_transforms import (
     TRANSFORMED_DATASET_SCHEMA,
@@ -352,18 +351,14 @@ def diffs_dataset_directory(run_directory, metrics_directory, collated_dataset_d
 
 
 @pytest.fixture
-def diff_matrix_parquet_filepath(run_directory, diffs_dataset_directory):
-    return create_record_diff_matrix_parquet(run_directory, diffs_dataset_directory)
+def diff_matrix_dataset_filepath(run_directory, diffs_dataset_directory) -> str:
+    return create_record_diff_matrix_dataset(run_directory, diffs_dataset_directory)
 
 
 @pytest.fixture
-def diff_matrix_parquet(diff_matrix_parquet_filepath):
-    return pq.ParquetFile(diff_matrix_parquet_filepath)
-
-
-@pytest.fixture
-def diff_matrix_df(diff_matrix_parquet) -> pd.DataFrame:
-    return diff_matrix_parquet.read().to_pandas()
+def diff_matrix_df(diff_matrix_dataset_filepath) -> pd.DataFrame:
+    diff_matrix_ds = load_dataset(diff_matrix_dataset_filepath)
+    return diff_matrix_ds.to_table().to_pandas()
 
 
 @pytest.fixture
@@ -374,9 +369,9 @@ def function_duckdb_connection():
 
 @pytest.fixture
 def duckdb_context_with_diff_matrix(
-    function_duckdb_connection, diff_matrix_parquet_filepath
+    function_duckdb_connection, diff_matrix_dataset_filepath
 ):
     fields, sources = _prepare_duckdb_context(
-        function_duckdb_connection, diff_matrix_parquet_filepath
+        function_duckdb_connection, diff_matrix_dataset_filepath
     )
     return function_duckdb_connection, fields, sources

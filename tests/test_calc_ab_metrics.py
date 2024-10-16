@@ -2,7 +2,7 @@
 
 import os.path
 
-import pyarrow.parquet as pq
+import pyarrow.dataset as ds
 
 from abdiff.core.calc_ab_metrics import (
     _get_field_counts,
@@ -11,10 +11,10 @@ from abdiff.core.calc_ab_metrics import (
     _prepare_duckdb_context,
     calc_ab_metrics,
     calculate_metrics_data,
-    create_record_diff_matrix_parquet,
+    create_record_diff_matrix_dataset,
     get_record_field_diff_bools_for_record,
 )
-from abdiff.core.utils import read_run_json
+from abdiff.core.utils import load_dataset, read_run_json
 
 
 def test_record_field_diffs_no_diffs():
@@ -38,13 +38,13 @@ def test_record_field_diffs_diff_from_inserts_and_deletes_counted_only_once():
     }
 
 
-def test_sparse_matrix_parquet_created_success(run_directory, diffs_dataset_directory):
-    diff_matrix_parquet = create_record_diff_matrix_parquet(
+def test_sparse_matrix_dataset_created_success(run_directory, diffs_dataset_directory):
+    diff_matrix_dataset_filepath = create_record_diff_matrix_dataset(
         run_directory, diffs_dataset_directory
     )
-    assert os.path.exists(diff_matrix_parquet)
-    matrix_parquet = pq.ParquetFile(diff_matrix_parquet)
-    assert isinstance(matrix_parquet, pq.ParquetFile)
+    assert os.path.exists(diff_matrix_dataset_filepath)
+    diff_matrix_dataset = load_dataset(diff_matrix_dataset_filepath)
+    assert isinstance(diff_matrix_dataset, ds.Dataset)
 
 
 def test_sparse_matrix_has_expected_structure(diff_matrix_df):
@@ -80,10 +80,10 @@ def test_sparse_matrix_has_expected_structure(diff_matrix_df):
 
 
 def test_duckdb_context_extracts_fields_and_sources(
-    function_duckdb_connection, diff_matrix_parquet_filepath
+    function_duckdb_connection, diff_matrix_dataset_filepath
 ):
     fields, sources = _prepare_duckdb_context(
-        function_duckdb_connection, diff_matrix_parquet_filepath
+        function_duckdb_connection, diff_matrix_dataset_filepath
     )
     assert set(fields) == {
         "color",
@@ -94,9 +94,9 @@ def test_duckdb_context_extracts_fields_and_sources(
 
 
 def test_duckdb_context_creates_record_diff_matrix_view(
-    function_duckdb_connection, diff_matrix_parquet_filepath
+    function_duckdb_connection, diff_matrix_dataset_filepath
 ):
-    _prepare_duckdb_context(function_duckdb_connection, diff_matrix_parquet_filepath)
+    _prepare_duckdb_context(function_duckdb_connection, diff_matrix_dataset_filepath)
 
     function_duckdb_connection.execute(
         """
@@ -176,8 +176,8 @@ def test_fields_counts_metrics(duckdb_context_with_diff_matrix):
     }
 
 
-def test_full_metrics_data_has_expected_structure(diff_matrix_parquet_filepath):
-    metrics = calculate_metrics_data(diff_matrix_parquet_filepath)
+def test_full_metrics_data_has_expected_structure(diff_matrix_dataset_filepath):
+    metrics = calculate_metrics_data(diff_matrix_dataset_filepath)
     assert set(metrics.keys()) == {"summary", "analysis"}
     assert set(metrics["analysis"].keys()) == {"by_source", "by_field"}
 

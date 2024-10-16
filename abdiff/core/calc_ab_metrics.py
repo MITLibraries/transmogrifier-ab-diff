@@ -8,10 +8,11 @@ from pathlib import Path
 
 import duckdb
 import pandas as pd
+import pyarrow as pa
 import pyarrow.dataset as ds
 from duckdb.duckdb import DuckDBPyConnection
 
-from abdiff.core.utils import update_or_create_run_json
+from abdiff.core.utils import update_or_create_run_json, write_to_dataset
 
 logger = logging.getLogger(__name__)
 
@@ -26,12 +27,12 @@ def calc_ab_metrics(
     os.makedirs(Path(run_directory) / "metrics", exist_ok=True)
 
     # build field diffs dataframe
-    field_matrix_parquet = create_record_diff_matrix_parquet(
+    field_matrix_dataset_filepath = create_record_diff_matrix_dataset(
         run_directory, diffs_dataset_path
     )
 
     # calculate metrics data from sparse matrix
-    metrics_data = calculate_metrics_data(field_matrix_parquet)
+    metrics_data = calculate_metrics_data(field_matrix_dataset_filepath)
 
     # update run data with metrics
     update_or_create_run_json(
@@ -41,7 +42,7 @@ def calc_ab_metrics(
     return metrics_data
 
 
-def create_record_diff_matrix_parquet(
+def create_record_diff_matrix_dataset(
     run_directory: str,
     diffs_dataset: str,
     batch_size: int = 1_000,
@@ -53,10 +54,10 @@ def create_record_diff_matrix_parquet(
     provides a handy way to calculate aggregate metrics for a given field or source in
     later steps.
 
-    This code does NOT use pyarrow, and momentarily creates a single dataframe in memory
-    for all rows.  This is safe given the nature of the dataframe: there may be 10m rows,
-    but there are only 20-30 columns, and either integer 1 or 0 as the value, resulting
-    in a very small dataset in memory despite a potentially high row count.
+    This code momentarily creates a single dataframe in memory for all rows.  This is safe
+    given the nature of the dataframe: there may be 10m rows, and potentially 20-30
+    columns, but all values are either integer 1 or 0 representing a boolean, resulting in
+    a very small dataset in memory despite a potentially high row count.
     """
     diffs_ds = ds.dataset(diffs_dataset)
 
@@ -94,10 +95,14 @@ def create_record_diff_matrix_parquet(
     metrics_df = pd.concat(batch_metrics_dfs)
     metrics_df = metrics_df.fillna(0)
 
-    # write parquet file via pandas writer
-    filepath = Path(run_directory) / "metrics" / "metrics.parquet"
-    metrics_df.to_parquet(filepath, index=False)
-    return str(filepath)
+    # write parquet dataset
+    metrics_dataset = str(Path(run_directory) / "metrics")
+    write_to_dataset(
+        data=pa.Table.from_pandas(metrics_df, preserve_index=False),
+        base_dir=metrics_dataset,
+        partition_columns=["source"],
+    )
+    return metrics_dataset
 
 
 def get_record_field_diff_bools_for_record(diff_data: dict) -> dict:
@@ -179,7 +184,7 @@ def _prepare_duckdb_context(
     conn.execute(
         f"""
             create view record_diff_matrix as (
-            select * from '{os.path.abspath(field_matrix_parquet)}'
+            select * from '{os.path.abspath(field_matrix_parquet)}/**/*.parquet'
             );"""
     )
 
