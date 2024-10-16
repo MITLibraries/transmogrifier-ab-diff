@@ -68,7 +68,7 @@ def create_record_diff_matrix_dataset(
             columns=["timdex_record_id", "source", "ab_diff"],
         )
     ):
-        t0 = time.time()
+        start_time = time.time()
         batch_df = batch.to_pandas()
 
         # parse diff JSON to dictionary for batch
@@ -83,13 +83,13 @@ def create_record_diff_matrix_dataset(
                 "source": row["source"],
             }
             diff_data = row["ab_diff"]
-            record_metrics.update(get_record_field_diff_bools_for_record(diff_data))
+            record_metrics.update(generate_field_diff_bools_for_record(diff_data))
             batch_metrics.append(record_metrics)
 
         # build dataframe for batch
         batch_metrics_df = pd.DataFrame(batch_metrics)
         batch_metrics_dfs.append(batch_metrics_df)
-        logger.info(f"batch: {i+1}, elapsed: {time.time()-t0}")
+        logger.info(f"batch: {i+1}, elapsed: {time.time()-start_time}")
 
     # concatenate all dataframes into single dataframe for writing and replace None with 0
     metrics_df = pd.concat(batch_metrics_dfs)
@@ -105,7 +105,7 @@ def create_record_diff_matrix_dataset(
     return metrics_dataset
 
 
-def get_record_field_diff_bools_for_record(diff_data: dict) -> dict:
+def generate_field_diff_bools_for_record(diff_data: dict) -> dict:
     """Function to return dictionary of fields that have a diff.
 
     Determining if a field had a diff is as straight-forward as looking to see if it shows
@@ -152,7 +152,7 @@ def calculate_metrics_data(field_matrix_parquet: str) -> dict:
                 "total_records": total_records,
                 "total_records_with_diff": total_records_with_diff,
                 "records_with_diff_percent": round(
-                    total_records_with_diff / total_records, 2
+                    (total_records_with_diff / total_records) * 100, 2
                 ),
                 "sources": sources,
                 "fields_with_diffs": fields,

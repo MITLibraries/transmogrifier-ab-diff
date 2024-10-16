@@ -29,7 +29,7 @@ DIFFS_DATASET_OUTPUT_SCHEMA = pa.schema(
 
 def calc_ab_diffs(run_directory: str, collated_dataset_path: str) -> str:
     """Create parquet dataset of records with A/B diff included."""
-    t0 = time.time()
+    start_time = time.time()
 
     diffs_dataset = Path(run_directory) / "diffs"
 
@@ -46,7 +46,7 @@ def calc_ab_diffs(run_directory: str, collated_dataset_path: str) -> str:
 
     update_or_create_run_json(run_directory, {"diffs_dataset_path": str(diffs_dataset)})
 
-    logger.info(f"calc_ab_diffs complete, elapsed: {time.time()-t0}")
+    logger.info(f"calc_ab_diffs complete, elapsed: {time.time()-start_time}")
     return str(diffs_dataset)
 
 
