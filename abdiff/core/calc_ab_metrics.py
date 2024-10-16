@@ -111,15 +111,12 @@ def get_record_field_diff_bools_for_record(diff_data: dict) -> dict:
     have changes, and therefore will not receive a 1 here to indicate a diff.
     """
     fields_with_diffs = {}
-    seen_subfields: set[str] = set()
 
     for key in diff_data:
 
         # identify modified fields nested in $insert or $delete blocks
         if key in ("$insert", "$delete"):
             for subfield in diff_data[key]:
-                if subfield in seen_subfields:
-                    continue
                 fields_with_diffs[subfield] = 1
 
         # identified modified fields at root of diff
