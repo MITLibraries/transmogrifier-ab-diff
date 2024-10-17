@@ -9,7 +9,7 @@
     </div>
     <div class="row">
         <h3>Details</h3>
-        <div id="runDetails" style="width: 100%; height: 400px;"></div>
+        <div id="runDetails" style="width: 100%;"></div>
     </div>
     <div class="row">
         <h3 data-bs-toggle="collapse" data-bs-target="#collapseLogs" role="button" aria-expanded="false" aria-controls="collapseLogs">Transform Logs ⤵</h3>
@@ -19,14 +19,32 @@
     </div>
     <div class="row">
         <h3>Diff Metrics</h3>
-        <div id="runMetrics" style="width: 100%; height: 400px;"></div>
+        <div id="runMetrics" style="width: 100%; margin-bottom:50px;"></div>
+    </div>
+    <div class="row">
+        <h3>Record Links</h3>
+        <h4>Fields with diffs</h4>
+        <ul style="margin-left:40px;">
+            {% for field,link in sample_links.field_samples.items() %}
+            <li><code><a href="{{link}}">{{field}}</a></code> ({{run_data.metrics.analysis.by_field[field].count}})</li>
+            {% endfor %}
+        </ul>
+        <h4>Sources with diffs</h4>
+        <ul style="margin-left:40px;">
+            {% for source,link in sample_links.source_samples.items() %}
+                <li><code><a href="{{link}}">{{source}}</a></code> ({{run_data.metrics.analysis.by_source[source].count}})</li>
+            {% endfor %}
+        </ul>
     </div>
 </div>
 
 <div>
     <script>
-        loadJSONData("runDetails", `{{run_json|safe}}`);
-        loadJSONData("runMetrics", `{{metrics_json|safe}}`);
+        let runDetailsEditor = loadJSONData("runDetails", `{{run_json|safe}}`);
+
+        let metricsEditor = loadJSONData("runMetrics", `{{metrics_json|safe}}`);
+        metricsEditor.expand({path: ["summary"], isExpand: true, recursive: false})
+        metricsEditor.expand({path: ["analysis"], isExpand: true, recursive: false})
     </script>
 </div>
 {% endblock %}

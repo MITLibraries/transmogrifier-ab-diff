@@ -23,11 +23,11 @@ logger = logging.getLogger(__name__)
 
 def run_ab_transforms(
     run_directory: str,
-    image_name_a: str,
-    image_name_b: str,
+    image_tag_a: str,
+    image_tag_b: str,
     input_files: list[str],
     docker_client: docker.client.DockerClient | None = None,
-    timeout: int = 180,
+    timeout: int = 600,
 ) -> tuple[list[str], ...]:
     """Run Docker containers with versioned images of Transmogrifier.
 
@@ -43,8 +43,8 @@ def run_ab_transforms(
 
     Args:
         run_directory (str): Run directory.
-        image_name_a (str): Image name for version A of transmogrifier.
-        image_name_b (str): Image name for version B of transmogrifier.
+        image_tag_a (str): Image name for version A of transmogrifier.
+        image_tag_b (str): Image name for version B of transmogrifier.
         input_files (list[str]): Input files for transform. Currently, only
             URIs for input files on S3 are accepted.
         docker_client (docker.client.DockerClient | None, optional): Docker client.
@@ -83,8 +83,8 @@ def run_ab_transforms(
     )
 
     run_configs = [
-        (image_name_a, transformed_directory_a),
-        (image_name_b, transformed_directory_b),
+        (image_tag_a, transformed_directory_a),
+        (image_tag_b, transformed_directory_b),
     ]
 
     containers = []

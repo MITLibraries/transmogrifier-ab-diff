@@ -1,19 +1,31 @@
+# ruff: noqa: PD901
+
+import json
+import os
 import random
+import shutil
 import time
 import warnings
 from pathlib import Path
 from unittest.mock import MagicMock
 
+import duckdb
+import pandas as pd
+import pyarrow as pa
 import pytest
 from click.testing import CliRunner
 from freezegun import freeze_time
 
-from abdiff.core import init_job, init_run
+from abdiff.core import calc_ab_diffs, init_job, init_run
+from abdiff.core.calc_ab_metrics import (
+    _prepare_duckdb_context,
+    create_record_diff_matrix_dataset,
+)
 from abdiff.core.collate_ab_transforms import (
     TRANSFORMED_DATASET_SCHEMA,
     get_transformed_batches_iter,
 )
-from abdiff.core.utils import create_subdirectories, write_to_dataset
+from abdiff.core.utils import create_subdirectories, load_dataset, write_to_dataset
 
 
 class Container:
@@ -103,8 +115,12 @@ def job_directory(tmp_path):
 
 
 @pytest.fixture
-def example_job_directory():
-    return "tests/fixtures/jobs/example-job-1"
+def example_job_directory(tmp_path):
+    """Copy example job from fixtures to tmp path where it will be modified during test"""
+    source_dir = Path("tests/fixtures/jobs/example-job-1")
+    dest_dir = tmp_path / "example-job-1"
+    shutil.copytree(source_dir, dest_dir)
+    return dest_dir
 
 
 @pytest.fixture
@@ -264,3 +280,98 @@ def webapp_client():
     app = create_app()
     with app.test_client() as client:
         yield client
+
+
+@pytest.fixture
+def collated_dataset_directory(run_directory):
+    """Simulate the outputs of core function collate_ab_transforms."""
+    dataset_directory = str(Path(run_directory) / "collated")
+    df = pd.DataFrame(
+        [
+            {
+                "timdex_record_id": "abc123",
+                "source": "alma",
+                "record_a": json.dumps(
+                    {"material": "concrete", "color": "green", "number": 42}
+                ).encode(),
+                "record_b": json.dumps(
+                    {"material": "concrete", "color": "red", "number": 42}
+                ).encode(),
+            },
+            {
+                "timdex_record_id": "def456",
+                "source": "dspace",
+                "record_a": json.dumps(
+                    {"material": "concrete", "color": "blue", "number": 101}
+                ).encode(),
+                "record_b": json.dumps(
+                    {"material": "concrete", "color": "blue", "number": 101}
+                ).encode(),
+            },
+            {
+                "timdex_record_id": "ghi789",
+                "source": "libguides",
+                "record_a": json.dumps(
+                    {
+                        "material": "concrete",
+                        "color": "purple",
+                        "number": 13,
+                        "fruit": "apple",
+                    }
+                ).encode(),
+                "record_b": json.dumps(
+                    {"material": "concrete", "color": "brown", "number": 99}
+                ).encode(),
+            },
+        ]
+    )
+    write_to_dataset(
+        pa.Table.from_pandas(df),
+        base_dir=dataset_directory,
+        partition_columns=["source"],
+    )
+    return dataset_directory
+
+
+@pytest.fixture
+def collated_dataset(collated_dataset_directory):
+    return load_dataset(collated_dataset_directory)
+
+
+@pytest.fixture
+def metrics_directory(run_directory):
+    directory = Path(run_directory) / "metrics"
+    os.makedirs(directory, exist_ok=True)
+    return str(directory)
+
+
+@pytest.fixture
+def diffs_dataset_directory(run_directory, metrics_directory, collated_dataset_directory):
+    return calc_ab_diffs(run_directory, collated_dataset_directory)
+
+
+@pytest.fixture
+def diff_matrix_dataset_filepath(run_directory, diffs_dataset_directory) -> str:
+    return create_record_diff_matrix_dataset(run_directory, diffs_dataset_directory)
+
+
+@pytest.fixture
+def diff_matrix_df(diff_matrix_dataset_filepath) -> pd.DataFrame:
+    diff_matrix_ds = load_dataset(diff_matrix_dataset_filepath)
+    return diff_matrix_ds.to_table().to_pandas()
+
+
+@pytest.fixture
+def function_duckdb_connection():
+    with duckdb.connect(":memory:") as conn:
+        yield conn
+
+
+@pytest.fixture
+def duckdb_context_with_diff_matrix(
+    function_duckdb_connection, diff_matrix_dataset_filepath
+):
+    fields, sources = _prepare_duckdb_context(
+        function_duckdb_connection, diff_matrix_dataset_filepath
+    )
+    return function_duckdb_connection, fields, sources

@@ -6,8 +6,15 @@ from time import perf_counter
 import click
 from click.exceptions import ClickException
 
-from abdiff.config import configure_logger
-from abdiff.core import build_ab_images
+from abdiff.config import Config, configure_logger
+from abdiff.core import (
+    build_ab_images,
+    calc_ab_diffs,
+    calc_ab_metrics,
+    collate_ab_transforms,
+    init_run,
+    run_ab_transforms,
+)
 from abdiff.core import init_job as core_init_job
 from abdiff.core.utils import read_job_json
 from abdiff.webapp.app import app
@@ -118,12 +125,59 @@ def init_job(
     "--job-directory",
     type=str,
     required=True,
+    help="Job directory to create.",
+)
+@click.option(
+    "-i",
+    "--input-files",
+    type=str,
+    required=True,
+    help="Input files to transform.",
+)
+def run_diff(job_directory: str, input_files: str) -> None:
+
+    job_data = read_job_json(job_directory)
+    run_directory = init_run(job_directory)
+
+    input_files_list = [filepath.strip() for filepath in input_files.split(",")]
+
+    ab_transformed_file_lists = run_ab_transforms(
+        run_directory=run_directory,
+        image_tag_a=job_data["image_tag_a"],
+        image_tag_b=job_data["image_tag_b"],
+        input_files=input_files_list,
+    )
+    collated_dataset_path = collate_ab_transforms(
+        run_directory=run_directory,
+        ab_transformed_file_lists=ab_transformed_file_lists,
+    )
+    diffs_dataset_path = calc_ab_diffs(
+        run_directory=run_directory,
+        collated_dataset_path=collated_dataset_path,
+    )
+    calc_ab_metrics(
+        run_directory=run_directory,
+        diffs_dataset_path=diffs_dataset_path,
+    )
+
+
+@main.command()
+@click.option(
+    "-d",
+    "--job-directory",
+    type=str,
+    required=True,
     help="Job directory to view in webapp.",
 )
 def view_job(
     job_directory: str,
 ) -> None:
     """Start flask app to view Job and Runs."""
-    logger.info(f"Starting flask webapp for job directory: {job_directory}")
+    config = Config()
+    logger.info(
+        f"Starting flask webapp for job directory: '{job_directory}', "
+        f"available at: http://{config.webapp_host}:{config.webapp_port}"
+    )
     app.config.update(JOB_DIRECTORY=job_directory)
-    app.run()
+    logger.info("")
+    app.run(host=config.webapp_host, port=config.webapp_port)

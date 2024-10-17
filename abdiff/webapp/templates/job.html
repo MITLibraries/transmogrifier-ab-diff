@@ -18,6 +18,7 @@
                 <tr>
                     <th>Timestamp</th>
                     <th>Message</th>
+                    <th>Input Files</th>
                     <th>Actions</th>
                 </tr>
             </thead>
@@ -26,6 +27,13 @@
                 <tr>
                     <td><code>{{run_timestamp}}</code></td>
                     <td>{{run_data.run_message}}</td>
+                    <td>
+                        <ul>
+                            {% for input_file in run_data.input_files %}
+                            <li><code>{{input_file}}</code></li>
+                            {% endfor %}
+                        </ul>
+                    </td>
                     <td><a href="/run/{{run_timestamp}}">View</a> / Delete</td>
                 </tr>
                 {% endfor %}
