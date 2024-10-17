@@ -38,26 +38,51 @@ A `run.json` follows roughly the following format, demonstrating fields added by
 }
 ```
 
-The following sketches a single job `"test-refactor"` and two runs `"2024-08-23_12-10-00"` and `"2024-08-23_13-30-00"`, and the resulting file structure:
+The following sketches a single job `"mvp"` after a single run `"2024-10-15_19-44-05"`, and the resulting file structure:
 
 ```text
-│   ─── test-refactor
-│       ├── job.json
-│       └── runs
-│           ├── 2024-08-23_12-10-00
-│           │   ├── collate_ab.parquet
-│           │   ├── diff_ab.parquet
-│           │   ├── metrics_ab.json
-│           │   ├── run.json
-│           │   └── transformed
-│           │       ├── a
-│           │       │   ├── alma-2024-01-01-transformed-to-index.json
-│           │       │   └── dspace-2024-03-15-transformed-to-index.json
-│           │       └── b
-│           │           ├── alma-2024-01-01-transformed-to-index.json
-│           │           └── dspace-2024-03-15-transformed-to-index.json
-│           └── 2024-08-23_13-30-00
-               └── # and similar structure here for this run...
+output/mvp
+├── job.json
+└── runs
+    └── 2024-10-15_19-44-05
+        ├── collated
+        │   └── records-0.parquet
+        ├── diffs
+        │   ├── has_diff=false
+        │   │   └── records-0.parquet
+        │   └── has_diff=true
+        │       └── records-0.parquet
+        ├── metrics
+        │   └── records-0.parquet
+        ├── run.json
+        └── transformed
+            ├── a
+            │   ├── alma-2023-02-19-daily-transformed-records-to-index.json
+            │   ├── dspace-2024-10-11-daily-transformed-records-to-index.json
+            │   └── libguides-2024-04-03-full-transformed-records-to-index.json
+            ├── b
+            │   ├── alma-2023-02-19-daily-transformed-records-to-index.json
+            │   ├── dspace-2024-10-11-daily-transformed-records-to-index.json
+            │   └── libguides-2024-04-03-full-transformed-records-to-index.json
+            └── logs.txt
+```
+
+## Environment Variables
+
+### Required
+
+```text
+WORKSPACE=dev # required by convention, but not actively used
+AWS_ACCESS_KEY_ID=# passed to Transmogrifier containers for use
+AWS_SECRET_ACCESS_KEY=# passed to Transmogrifier containers for use 
+AWS_SESSION_TOKEN=# passed to Transmogrifier containers for use
+```
+
+### Optional
+
+```text
+WEBAPP_HOST=# host for flask webapp
+WEBAPP_PORT# port for flask webapp
 ```
 
 ## CLI commands
@@ -98,6 +123,16 @@ Options:
                             [required]
   -b, --commit-sha-b TEXT   Transmogrifier commit SHA for version 'B'
                             [required]
+  -h, --help                Show this message and exit.
+```
+
+### `abdiff run-diff`
+```text
+Usage: -c run-diff [OPTIONS]
+
+Options:
+  -d, --job-directory TEXT  Job directory to create.  [required]
+  -i, --input-files TEXT    Input files to transform.  [required]
   -h, --help                Show this message and exit.
 ```
 
