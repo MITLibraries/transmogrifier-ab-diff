@@ -27,9 +27,9 @@
 
 <div>
     <script>
-        loadJSONData("recordA", `{{a_json|safe}}`);
-        loadJSONData("recordB", `{{b_json|safe}}`);
-        loadJSONData("recordSummary", `{{summary|safe}}`);
+        loadJSONData("recordSummary", {{summary|safe}});
+        loadJSONData("recordA", {{a_json|safe}});
+        loadJSONData("recordB", {{a_json|safe}});
     </script>
 
     <script type="text/javascript" src="{{ url_for('static', filename='diff2html-ui.min.js') }}"></script>

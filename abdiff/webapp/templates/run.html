@@ -40,9 +40,9 @@
 
 <div>
     <script>
-        let runDetailsEditor = loadJSONData("runDetails", `{{run_json|safe}}`);
+        let runDetailsEditor = loadJSONData("runDetails", {{run_json|safe}});
 
-        let metricsEditor = loadJSONData("runMetrics", `{{metrics_json|safe}}`);
+        let metricsEditor = loadJSONData("runMetrics", {{metrics_json|safe}});
         metricsEditor.expand({path: ["summary"], isExpand: true, recursive: false})
         metricsEditor.expand({path: ["analysis"], isExpand: true, recursive: false})
     </script>

@@ -72,3 +72,21 @@ def test_shutdown_route_success(caplog, webapp_client):
 
     assert "Shutting down flask webapp..." in caplog.text
     mock_pid_kill.assert_called_once_with(os.getpid(), signal.SIGINT)
+
+
+def test_record_page_get_a_b_records_passed_as_valid_json_strings(
+    monkeypatch, caplog, webapp_client
+):
+    monkeypatch.setenv("JOB_DIRECTORY", "tests/fixtures/jobs/example-job-2")
+
+    with patch("abdiff.webapp.app.render_template") as mock_render:
+        _response = webapp_client.get(
+            "/run/2024-10-17_14-01-18/record/dspace:1721.1-157217"
+        )
+    args, kwargs = mock_render.call_args
+
+    a, b = kwargs["a_json"], kwargs["b_json"]
+    assert isinstance(a, str)
+    assert isinstance(b, str)
+    assert isinstance(json.loads(a), dict)
+    assert isinstance(json.loads(b), dict)
