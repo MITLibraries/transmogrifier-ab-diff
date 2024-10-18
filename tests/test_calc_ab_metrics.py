@@ -109,6 +109,7 @@ def test_duckdb_context_creates_record_diff_matrix_view(
     assert set(record_diff_df.columns) == {
         "timdex_record_id",
         "source",
+        "has_diff",
         "color",
         "fruit",
         "number",
@@ -116,6 +117,7 @@ def test_duckdb_context_creates_record_diff_matrix_view(
     assert record_diff_df.iloc[0].to_dict() == {
         "timdex_record_id": "abc123",
         "source": "alma",
+        "has_diff": 1.0,
         "color": 1.0,
         "fruit": 0.0,
         "number": 0.0,
@@ -124,7 +126,7 @@ def test_duckdb_context_creates_record_diff_matrix_view(
 
 def test_global_counts_metrics(duckdb_context_with_diff_matrix):
     conn, fields, sources = duckdb_context_with_diff_matrix
-    total_records, total_records_with_diff = _get_global_counts(conn, fields)
+    total_records, total_records_with_diff = _get_global_counts(conn)
     assert total_records == 3
     assert total_records_with_diff == 2
 

@@ -9,14 +9,13 @@ from pathlib import Path
 import duckdb
 import pandas as pd
 import pyarrow as pa
-import pyarrow.dataset as ds
 from duckdb.duckdb import DuckDBPyConnection
 
-from abdiff.core.utils import update_or_create_run_json, write_to_dataset
+from abdiff.core.utils import load_dataset, update_or_create_run_json, write_to_dataset
 
 logger = logging.getLogger(__name__)
 
-NON_TIMDEX_FIELD_COLUMNS = ["timdex_record_id", "source"]
+NON_TIMDEX_FIELD_COLUMNS = ["timdex_record_id", "source", "has_diff"]
 
 
 def calc_ab_metrics(
@@ -52,20 +51,22 @@ def create_record_diff_matrix_dataset(
     This writes a single parquet file with rows for each record, and columns for each
     TIMDEX field, and a value of integer 1 if that field has a diff and 0 if not.  This
     provides a handy way to calculate aggregate metrics for a given field or source in
-    later steps.
+    later steps.  The column "has_diff" is also carried over from the diffs dataset to
+    provide a single column to check if ANY of the field columns indicate a diff for a
+    record row.
 
     This code momentarily creates a single dataframe in memory for all rows.  This is safe
     given the nature of the dataframe: there may be 10m rows, and potentially 20-30
     columns, but all values are either integer 1 or 0 representing a boolean, resulting in
     a very small dataset in memory despite a potentially high row count.
     """
-    diffs_ds = ds.dataset(diffs_dataset)
+    diffs_ds = load_dataset(diffs_dataset)
 
     batch_metrics_dfs = []
     for i, batch in enumerate(
         diffs_ds.to_batches(
             batch_size=batch_size,
-            columns=["timdex_record_id", "source", "ab_diff"],
+            columns=["timdex_record_id", "source", "ab_diff", "has_diff"],
         )
     ):
         start_time = time.time()
@@ -81,6 +82,7 @@ def create_record_diff_matrix_dataset(
             record_metrics = {
                 "timdex_record_id": row["timdex_record_id"],
                 "source": row["source"],
+                "has_diff": 1 if row["has_diff"] == "true" else 0,
             }
             diff_data = row["ab_diff"]
             record_metrics.update(generate_field_diff_bools_for_record(diff_data))
@@ -145,7 +147,7 @@ def calculate_metrics_data(field_matrix_parquet: str) -> dict:
         fields, sources = _prepare_duckdb_context(conn, field_matrix_parquet)
 
         # get global counts across all fields and sources
-        total_records, total_records_with_diff = _get_global_counts(conn, fields)
+        total_records, total_records_with_diff = _get_global_counts(conn)
 
         summary.update(
             {
@@ -215,17 +217,16 @@ def _prepare_duckdb_context(
     return fields, sources
 
 
-def _get_global_counts(conn: DuckDBPyConnection, fields: list[str]) -> tuple[int, int]:
+def _get_global_counts(conn: DuckDBPyConnection) -> tuple[int, int]:
     total_records = conn.execute(
         """
         SELECT COUNT(*) FROM record_diff_matrix
         """
     ).fetchone()[0]
 
-    any_field_modified_condition = " OR ".join(f"{field} = 1" for field in fields)
     total_records_with_diff = conn.execute(
-        f"""
-        select count(*) from record_diff_matrix where {any_field_modified_condition}
+        """
+        select count(*) from record_diff_matrix where has_diff;
         """
     ).fetchone()[0]
 
@@ -238,12 +239,12 @@ def _get_source_counts(
     sources: list[str],
     analysis: dict,
 ) -> dict:
-    any_field_modified_condition = " OR ".join(f"{field} = 1" for field in fields)
     for source in sources:
         total_count = conn.execute(
             f"""
             select count(*) from record_diff_matrix
-            where source = '{source}' and ({any_field_modified_condition})
+            where source = '{source}'
+            and has_diff;
         """
         ).fetchone()[0]
 

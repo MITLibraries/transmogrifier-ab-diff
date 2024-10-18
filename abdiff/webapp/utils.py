@@ -6,8 +6,6 @@ import duckdb
 import pandas as pd
 from flask import g
 
-from abdiff.core.utils import read_run_json
-
 
 def get_run_directory(run_timestamp: str) -> str:
     return str(Path(g.job_directory) / "runs" / run_timestamp)
@@ -109,11 +107,7 @@ def get_source_sample_records(run_directory: str, source: str) -> pd.DataFrame:
     This will return a maximum of 100 records from any given source, ordered by the
     timdex_record_id.
     """
-    run_data = read_run_json(run_directory)
-    fields = run_data["metrics"]["summary"]["fields_with_diffs"]
-    any_field_modified_condition = " OR ".join(f"{field} = 1" for field in fields)
-
-    query = f"""
+    query = """
         select timdex_record_id, source
         from (
             select
@@ -124,7 +118,7 @@ def get_source_sample_records(run_directory: str, source: str) -> pd.DataFrame:
                 ) as row_num
             from record_diff_matrix
             where source = ?
-            and ({any_field_modified_condition})
+            and has_diff
         ) subquery
         where row_num <= 100
         ;
