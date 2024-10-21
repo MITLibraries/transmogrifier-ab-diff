@@ -7,6 +7,7 @@ import docker.models.images
 from pygit2 import clone_repository
 from pygit2.enums import ResetMode
 
+from abdiff.core.exceptions import InvalidRepositoryCommitSHAError
 from abdiff.core.utils import update_or_create_job_json
 
 logger = logging.getLogger(__name__)
@@ -92,10 +93,17 @@ def clone_repo_and_reset_to_commit(clone_directory: str, commit_sha: str) -> Non
         commit_sha: The SHA of a repo commit.
     """
     logger.debug(f"Cloning repo to: {clone_directory}")
+    transmogrifier_url = "https://github.com/MITLibraries/transmogrifier.git"
     repository = clone_repository(
-        "https://github.com/MITLibraries/transmogrifier.git",
+        transmogrifier_url,
         clone_directory,
     )
     logger.debug(f"Cloned repo to: {clone_directory}")
-    repository.reset(commit_sha, ResetMode.HARD)
-    logger.debug(f"Cloned repo reset to commit: {commit_sha}")
+
+    try:
+        repository.reset(commit_sha, ResetMode.HARD)
+        logger.debug(f"Cloned repo reset to commit: {commit_sha}")
+    except KeyError as exception:
+        raise InvalidRepositoryCommitSHAError(
+            transmogrifier_url, commit_sha
+        ) from exception

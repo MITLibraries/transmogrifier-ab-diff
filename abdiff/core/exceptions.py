@@ -16,3 +16,10 @@ class DockerContainerRuntimeExceededTimeoutError(Exception):
             f"{len(container_ids)} container(s) is/are still running:"
             f"{container_ids}."
         )
+
+
+class InvalidRepositoryCommitSHAError(Exception):
+    def __init__(self, repository: str, commit_sha: str):
+        super().__init__(
+            f"Cannot reset repository ({repository}) to an invalid commit SHA: {commit_sha}."  # noqa: E501
+        )
