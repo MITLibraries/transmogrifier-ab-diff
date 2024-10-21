@@ -7,6 +7,14 @@
     <div class="row">
         <h1>Run: <code>{{run_data.run_timestamp}}</code></h1>
     </div>
+
+    <!-- show banner if zero records had diff -->
+    {% if run_data.metrics.summary.total_records_with_diff == 0 %}
+    <div class="alert alert-success" role="alert">
+        NOTE: zero records from this run had any differences between "A" and "B" versions.
+    </div>
+    {% endif %}
+
     <div class="row">
         <h3>Details</h3>
         <div id="runDetails" style="width: 100%;"></div>
@@ -22,18 +30,31 @@
         <div id="runMetrics" style="width: 100%; margin-bottom:50px;"></div>
     </div>
     <div class="row">
-        <h3>Record Links</h3>
+        <h3>Record Samples</h3>
+
         <h4>Fields with diffs</h4>
         <ul style="margin-left:40px;">
-            {% for field,link in sample_links.field_samples.items() %}
-            <li><code><a href="{{link}}">{{field}}</a></code> ({{run_data.metrics.analysis.by_field[field].count}})</li>
-            {% endfor %}
+            {% if run_data.metrics.summary.total_records_with_diff > 0 %}
+                {% for field,link in sample_links.field_samples.items() %}
+                <li><code><a href="{{link}}">{{field}}</a></code> ({{run_data.metrics.analysis.by_field[field].count}})</li>
+                {% endfor %}
+            {% else %}
+                <li><i>No records had diffs for any fields.</i></li>
+            {% endif %}
         </ul>
         <h4>Sources with diffs</h4>
         <ul style="margin-left:40px;">
-            {% for source,link in sample_links.source_samples.items() %}
-                <li><code><a href="{{link}}">{{source}}</a></code> ({{run_data.metrics.analysis.by_source[source].count}})</li>
-            {% endfor %}
+            {% if run_data.metrics.summary.total_records_with_diff > 0 %}
+                {% for source,link in sample_links.source_samples.items() %}
+                    <li><code><a href="{{link}}">{{source}}</a></code> ({{run_data.metrics.analysis.by_source[source].count}})</li>
+                {% endfor %}
+            {% else %}
+                <li><i>No records had diffs for any sources.</i></li>
+            {% endif %}
+        </ul>
+        <h4>All records</h4>
+        <ul style="margin-left:40px;">
+            <li><i>TODO: provide a link to interface that supports browsing of all records...</i></li>
         </ul>
     </div>
 </div>
