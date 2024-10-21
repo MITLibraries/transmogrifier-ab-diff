@@ -48,9 +48,8 @@ def test_docker_image_exists_returns_false(mocked_docker_client):
 
 
 @patch("abdiff.core.build_ab_images.clone_repository")
-def test_build_image_success(mocked_clone, job_directory, mocked_docker_client):
+def test_build_image_success(mocked_clone, mocked_docker_client):
     image = build_image(
-        job_directory,
         "abc123",
         mocked_docker_client,
     )

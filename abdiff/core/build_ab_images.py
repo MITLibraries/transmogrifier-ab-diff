@@ -32,18 +32,23 @@ def build_ab_images(
     image_tags = []
     for commit_sha in [commit_sha_a, commit_sha_b]:
         logger.debug(f"Processing commit: {commit_sha}")
-        image_tag = f"transmogrifier-{job_directory.split("/")[-1]}-{commit_sha}:latest"
+        image_tag = generate_image_name(commit_sha)
         if docker_image_exists(docker_client, image_tag):
             logger.debug(f"Docker image already exists with tag: {image_tag}")
             image_tags.append(image_tag)
         else:
-            image = build_image(job_directory, commit_sha, docker_client)
+            image = build_image(commit_sha, docker_client)
             image_tags.append(image.tags[0])
         logger.debug(f"Finished processing commit: {commit_sha}")
 
     images_data = {"image_tag_a": image_tags[0], "image_tag_b": image_tags[1]}
     update_or_create_job_json(job_directory, images_data)
     return (image_tags[0], image_tags[1])
+
+
+def generate_image_name(commit_sha: str) -> str:
+    """Standardize docker image naming via this function."""
+    return f"transmogrifier-abdiff-{commit_sha}:latest"
 
 
 def docker_image_exists(
@@ -61,7 +66,6 @@ def docker_image_exists(
 
 
 def build_image(
-    job_directory: str,
     commit_sha: str,
     docker_client: docker.client.DockerClient,
 ) -> docker.models.images.Image:
@@ -73,7 +77,7 @@ def build_image(
         docker_client: A configured Docker client.
     """
     with tempfile.TemporaryDirectory() as clone_directory:
-        image_tag = f"transmogrifier-{job_directory.split("/")[-1]}-{commit_sha}"
+        image_tag = generate_image_name(commit_sha)
         clone_repo_and_reset_to_commit(clone_directory, commit_sha)
         image, _ = docker_client.images.build(path=clone_directory, tag=image_tag)
         logger.debug(f"Docker image created with tag: {image}")

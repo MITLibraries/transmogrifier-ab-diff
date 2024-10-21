@@ -56,8 +56,8 @@ def test_init_job_all_arguments_success(
     assert job_data == {
         "job_directory": job_directory,
         "job_message": message,
-        "image_tag_a": "transmogrifier-example-job-1-abc123:latest",
-        "image_tag_b": "transmogrifier-example-job-1-def456:latest",
+        "image_tag_a": "transmogrifier-abdiff-abc123:latest",
+        "image_tag_b": "transmogrifier-abdiff-def456:latest",
     }
 
 
