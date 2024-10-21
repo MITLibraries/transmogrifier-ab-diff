@@ -18,6 +18,26 @@ class DockerContainerRuntimeExceededTimeoutError(Exception):
         )
 
 
+# core function errors
+
+
+class DockerContainerRunFailedError(Exception):
+    def __init__(self, containers: list) -> None:
+        self.containers = containers
+        super().__init__(self.get_formatted_message())
+
+    def get_formatted_message(self) -> str:
+        return (
+            f"The following Docker containers exited with an error: {self.containers}. "
+            "Check the logs in transformed/logs.txt to identify the error."
+        )
+
+
+class OutputValidationError(Exception):
+    def __init__(self, message: str):
+        super().__init__(message)
+
+
 class InvalidRepositoryCommitSHAError(Exception):
     def __init__(self, repository: str, commit_sha: str):
         super().__init__(
