@@ -1,7 +1,7 @@
 {
     "_meta": {
         "hash": {
-            "sha256": "3319ced39955b9b15ecd9b08ff9dc15a4521baff24efb01a1142cca68025194b"
+            "sha256": "49987b97784dac1b79e294756e488689897dda724ffea6cfc0263b1256f914c8"
         },
         "pipfile-spec": 6,
         "requires": {
@@ -1323,18 +1323,17 @@
                 "sha256:f7ae2de664e0b158d1607699a16a488de3d008ba99b3a7aa5de1cbc13574d047",
                 "sha256:fa3c246cc58cb5a4a5cb407a18f193354ea47dd0648194e6265bd24177982fe8"
             ],
-            "index": "pypi",
             "markers": "python_version >= '3.8'",
             "version": "==17.0.0"
         },
         "pyarrow-stubs": {
             "hashes": [
-                "sha256:caf83fc7de100bf8a40cd79d097a8c28384aa0ef38e3a9a340d55cdf6f3d840c",
-                "sha256:ff47b22a1fdac24a8fda53b0f60d8cf4a9d14d0daf19f0bfca0681796f31be13"
+                "sha256:b7c1085d8cf3224c0fd105a16d063ea3b76d8b38d42044a13200b3e2cbf7c302",
+                "sha256:c59c8163e30f3146d6b0b060aa67623d5d18b292b17e8a53016906c499920b3c"
             ],
             "index": "pypi",
             "markers": "python_version >= '3.8' and python_version < '4'",
-            "version": "==17.7"
+            "version": "==17.9"
         },
         "pygments": {
             "hashes": [
