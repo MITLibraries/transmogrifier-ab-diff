@@ -9,7 +9,9 @@ from pathlib import Path
 import duckdb
 import ijson
 import pyarrow as pa
+import pyarrow.dataset as ds
 
+from abdiff.core.exceptions import OutputValidationError
 from abdiff.core.utils import write_to_dataset
 
 logger = logging.getLogger(__name__)
@@ -67,6 +69,9 @@ def collate_ab_transforms(
         schema=JOINED_DATASET_SCHEMA,
     )
     logger.info(f"Wrote {len(joined_written_files)} parquet file(s) to collated dataset")
+
+    validate_output(collated_dataset_path)
+
     return collated_dataset_path
 
 
@@ -187,8 +192,8 @@ def get_joined_batches_iter(dataset_directory: str) -> Generator[pa.RecordBatch]
                     a AS (SELECT * FROM transformed_file WHERE version='a'),
                     b AS (SELECT * FROM transformed_file WHERE version='b')
                 SELECT
-                    a.timdex_record_id,
-                    a.source,
+                    COALESCE(a.timdex_record_id, b.timdex_record_id) timdex_record_id,
+                    COALESCE(a.source, b.source) source,
                     a.record as record_a,
                     b.record as record_b
                 FROM a
@@ -205,6 +210,30 @@ def get_joined_batches_iter(dataset_directory: str) -> Generator[pa.RecordBatch]
                     yield results.read_next_batch()
                 except StopIteration:
                     break
+
+
+def validate_output(dataset_path: str) -> None:
+    """Validate the output of collate_ab_transforms.
+
+    This function checks whether the collated dataset is empty
+    and whether any or both 'record_*' columns are empty.
+    """
+    collated_dataset = ds.dataset(dataset_path)
+    collated_table = collated_dataset.to_table(columns=["record_a", "record_b"])
+
+    # check if the table is empty
+    if collated_table.num_rows == 0:
+        raise OutputValidationError(  # noqa: TRY003
+            "The collated dataset does not contain any records."
+        )
+
+    # check if any of the 'record_*' columns are empty
+    record_columns = collated_table.to_pandas()
+    if record_columns["record_a"].isna().all() or record_columns["record_b"].isna().all():
+        raise OutputValidationError(  # noqa: TRY003
+            "At least one or both record column(s) ['record_a', 'record_b'] "
+            "in the collated dataset are empty."
+        )
 
 
 def parse_parquet_details_from_transformed_file(transformed_file: str) -> tuple[str, ...]:

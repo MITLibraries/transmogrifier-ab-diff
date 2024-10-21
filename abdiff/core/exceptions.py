@@ -19,8 +19,6 @@ class DockerContainerRuntimeExceededTimeoutError(Exception):
 
 
 # core function errors
-
-
 class DockerContainerRunFailedError(Exception):
     def __init__(self, containers: list) -> None:
         self.containers = containers
@@ -33,13 +31,13 @@ class DockerContainerRunFailedError(Exception):
         )
 
 
-class OutputValidationError(Exception):
-    def __init__(self, message: str):
-        super().__init__(message)
-
-
 class InvalidRepositoryCommitSHAError(Exception):
     def __init__(self, repository: str, commit_sha: str):
         super().__init__(
             f"Cannot reset repository ({repository}) to an invalid commit SHA: {commit_sha}."  # noqa: E501
         )
+
+
+class OutputValidationError(Exception):
+    def __init__(self, message: str):
+        super().__init__(message)
