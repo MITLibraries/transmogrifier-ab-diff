@@ -249,20 +249,22 @@ def get_transformed_files(run_directory: str) -> tuple[list[str], ...]:
 
 
 def validate_output(
-    ab_transformed_file_lists: tuple[list[str], ...], expected_file_count: int
+    ab_transformed_file_lists: tuple[list[str], ...], input_files_count: int
 ) -> None:
     """Validate the output of run_ab_transforms.
 
-    This function checks that the number of files in the A/B transformed file
-    directories matches expected file count (i.e., the number of input files).
+    This function checks that the number of files in each of the A/B
+    transformed file directories matches the number of input files
+    provided to run_ab_transforms (i.e., the expected number of
+    files that are transformed).
     """
     if any(
-        len(transformed_files) != expected_file_count
+        len(transformed_files) != input_files_count
         for transformed_files in ab_transformed_file_lists
     ):
         raise OutputValidationError(  # noqa: TRY003
             "At least one or more transformed JSON file(s) are missing. "
-            f"Expecting {expected_file_count} transformed JSON file(s)."
+            f"Expecting {input_files_count} transformed JSON file(s)."
             "Check the transformed file directories."
         )
 

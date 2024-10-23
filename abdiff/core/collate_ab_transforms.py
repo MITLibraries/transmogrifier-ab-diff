@@ -9,7 +9,6 @@ from pathlib import Path
 import duckdb
 import ijson
 import pyarrow as pa
-import pyarrow.dataset as ds
 
 from abdiff.core.exceptions import OutputValidationError
 from abdiff.core.utils import write_to_dataset
@@ -168,7 +167,7 @@ def get_joined_batches_iter(dataset_directory: str) -> Generator[pa.RecordBatch]
         dataset_directory: The root directory of the Parquet dataset of TIMDEX records
             (i.e., the tempfile.TemporaryDirectory).
     """
-    with duckdb.connect() as con:
+    with duckdb.connect(":memory:") as con:
         transformed_file_names = con.execute(
             """
             SELECT DISTINCT transformed_file_name FROM
@@ -216,24 +215,51 @@ def validate_output(dataset_path: str) -> None:
     """Validate the output of collate_ab_transforms.
 
     This function checks whether the collated dataset is empty
-    and whether any or both 'record_*' columns are empty.
+    and whether any or both 'record_a' or 'record_b' columns are
+    totally empty.
     """
-    collated_dataset = ds.dataset(dataset_path)
-    collated_table = collated_dataset.to_table(columns=["record_a", "record_b"])
+    collated_parquet_glob = f"{dataset_path}/**/*.parquet"
 
-    # check if the table is empty
-    if collated_table.num_rows == 0:
-        raise OutputValidationError(  # noqa: TRY003
-            "The collated dataset does not contain any records."
-        )
+    with duckdb.connect(":memory:") as con:
+        # check if the table is empty
+        record_count = con.execute(
+            "SELECT COUNT(*) FROM read_parquet($collated_parquet_glob)",
+            {"collated_parquet_glob": collated_parquet_glob},
+        ).fetchone()[
+            0
+        ]  # type: ignore[index]
 
-    # check if any of the 'record_*' columns are empty
-    record_columns = collated_table.to_pandas()
-    if record_columns["record_a"].isna().all() or record_columns["record_b"].isna().all():
-        raise OutputValidationError(  # noqa: TRY003
-            "At least one or both record column(s) ['record_a', 'record_b'] "
-            "in the collated dataset are empty."
-        )
+        if record_count == 0:
+            raise OutputValidationError(  # noqa: TRY003
+                "The collated dataset does not contain any records."
+            )
+
+        # check if any of the 'record_*' columns are empty
+        record_a_null_count = con.execute(
+            """
+            SELECT COUNT(*) FROM read_parquet($collated_parquet_glob)
+            WHERE record_a ISNULL
+            """,
+            {"collated_parquet_glob": collated_parquet_glob},
+        ).fetchone()[
+            0
+        ]  # type: ignore[index]
+
+        record_b_null_count = con.execute(
+            """
+            SELECT COUNT(*) FROM read_parquet($collated_parquet_glob)
+            WHERE record_b ISNULL
+            """,
+            {"collated_parquet_glob": collated_parquet_glob},
+        ).fetchone()[
+            0
+        ]  # type: ignore[index]
+
+        if record_count in {record_a_null_count, record_b_null_count}:
+            raise OutputValidationError(  # noqa: TRY003
+                "At least one or both record column(s) ['record_a', 'record_b'] "
+                "in the collated dataset are empty."
+            )
 
 
 def parse_parquet_details_from_transformed_file(transformed_file: str) -> tuple[str, ...]:

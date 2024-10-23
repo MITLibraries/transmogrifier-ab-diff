@@ -56,7 +56,7 @@ def test_run_ab_transforms_success(
         )
 
 
-def test_run_ab_transforms_raise_error(
+def test_run_ab_transforms_raise_error_if_containers_failed(
     run_directory,
     transformed_directories,
     mocked_docker_client,
@@ -186,7 +186,7 @@ def test_validate_output_success():
     assert (
         validate_output(
             ab_transformed_file_lists=(["transformed/a/file1"], ["transformed/b/file2"]),
-            expected_file_count=1,
+            input_files_count=1,
         )
         is None
     )
@@ -194,7 +194,7 @@ def test_validate_output_success():
 
 def test_validate_output_error():
     with pytest.raises(OutputValidationError):
-        validate_output(ab_transformed_file_lists=([], []), expected_file_count=1)
+        validate_output(ab_transformed_file_lists=([], []), input_files_count=1)
 
 
 def test_parse_transform_details_from_extract_filename_success(input_file):
