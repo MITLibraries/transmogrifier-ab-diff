@@ -218,17 +218,18 @@ def validate_output(dataset_path: str) -> None:
     and whether any or both 'record_a' or 'record_b' columns are
     totally empty.
     """
-    collated_parquet_glob = f"{dataset_path}/**/*.parquet"
-
     with duckdb.connect(":memory:") as con:
-        # check if the table is empty
-        record_count = con.execute(
-            "SELECT COUNT(*) FROM read_parquet($collated_parquet_glob)",
-            {"collated_parquet_glob": collated_parquet_glob},
-        ).fetchone()[
-            0
-        ]  # type: ignore[index]
+        # create view of collated table
+        con.execute(
+            f"""
+            CREATE VIEW collated AS (
+                SELECT * FROM read_parquet('{f"{dataset_path}/**/*.parquet"}')
+            )
+            """
+        )
 
+        # check if the table is empty
+        record_count = con.execute("SELECT COUNT(*) FROM collated").fetchone()[0]  # type: ignore[index]
         if record_count == 0:
             raise OutputValidationError(  # noqa: TRY003
                 "The collated dataset does not contain any records."
@@ -236,21 +237,13 @@ def validate_output(dataset_path: str) -> None:
 
         # check if any of the 'record_*' columns are empty
         record_a_null_count = con.execute(
-            """
-            SELECT COUNT(*) FROM read_parquet($collated_parquet_glob)
-            WHERE record_a ISNULL
-            """,
-            {"collated_parquet_glob": collated_parquet_glob},
+            "SELECT COUNT(*) FROM collated WHERE record_a ISNULL"
         ).fetchone()[
             0
         ]  # type: ignore[index]
 
         record_b_null_count = con.execute(
-            """
-            SELECT COUNT(*) FROM read_parquet($collated_parquet_glob)
-            WHERE record_b ISNULL
-            """,
-            {"collated_parquet_glob": collated_parquet_glob},
+            "SELECT COUNT(*) FROM collated WHERE record_b ISNULL"
         ).fetchone()[
             0
         ]  # type: ignore[index]
