@@ -4,13 +4,18 @@ from pathlib import Path
 
 import pytest
 
-from abdiff.core.exceptions import DockerContainerRuntimeExceededTimeoutError
+from abdiff.core.exceptions import (
+    DockerContainerRunFailedError,
+    DockerContainerRuntimeExceededTimeoutError,
+    OutputValidationError,
+)
 from abdiff.core.run_ab_transforms import (
     aggregate_logs,
     get_transformed_files,
     parse_transform_details_from_extract_filename,
     run_ab_transforms,
     run_docker_container,
+    validate_output,
     wait_for_containers,
 )
 from tests.conftest import MockedContainerRun
@@ -27,6 +32,7 @@ def test_run_ab_transforms_success(
             transformed_directories
         )
     )
+
     run_ab_transforms(
         run_directory=run_directory,
         image_tag_a="transmogrifier-example-job-1-abc123:latest",
@@ -50,6 +56,32 @@ def test_run_ab_transforms_success(
         )
 
 
+def test_run_ab_transforms_raise_error_if_containers_failed(
+    run_directory,
+    transformed_directories,
+    mocked_docker_client,
+    mocked_container_failed_runs_iter,
+    caplog,
+):
+    caplog.set_level("DEBUG")
+    mocked_docker_client.containers.run.side_effect = (
+        lambda *args, **kwargs: mocked_container_failed_runs_iter.yield_mocked_run(
+            transformed_directories
+        )
+    )
+
+    with pytest.raises(DockerContainerRunFailedError):
+        run_ab_transforms(
+            run_directory=run_directory,
+            image_tag_a="transmogrifier-example-job-1-abc123:latest",
+            image_tag_b="transmogrifier-example-job-1-def456:latest",
+            input_files=[
+                "s3://timdex-extract-dev/source/source-2024-01-01-daily-extracted-records-to-index.xml"
+            ],
+            docker_client=mocked_docker_client,
+        )
+
+
 def test_run_docker_container_success(
     mocked_docker_client,
     mocked_docker_container_and_image,
@@ -70,7 +102,7 @@ def test_run_docker_container_success(
         transformed_directory = transformed_directory_b
 
     mocked_docker_client.containers.run.side_effect = lambda *args, **kwargs: (
-        MockedContainerRun.create_transformed_files(
+        MockedContainerRun().create_transformed_files(
             transformed_directory=transformed_directory,
             container_id=mocked_docker_container.id,
             image_name=image_name,
@@ -148,6 +180,21 @@ def test_get_transformed_files_success(
             "transformed/b/source-2024-01-01-full-transformed-records-to-index.json",
         ],
     )
+
+
+def test_validate_output_success():
+    assert (
+        validate_output(
+            ab_transformed_file_lists=(["transformed/a/file1"], ["transformed/b/file2"]),
+            input_files_count=1,
+        )
+        is None
+    )
+
+
+def test_validate_output_error():
+    with pytest.raises(OutputValidationError):
+        validate_output(ab_transformed_file_lists=([], []), input_files_count=1)
 
 
 def test_parse_transform_details_from_extract_filename_success(input_file):

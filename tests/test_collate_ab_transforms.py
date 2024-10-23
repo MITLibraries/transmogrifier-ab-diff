@@ -1,9 +1,11 @@
 # ruff: noqa: PLR2004
-
+import os
+import re
 from pathlib import Path
 
 import pyarrow as pa
 import pyarrow.dataset as ds
+import pyarrow.parquet as pq
 import pytest
 
 from abdiff.core.collate_ab_transforms import (
@@ -15,7 +17,10 @@ from abdiff.core.collate_ab_transforms import (
     get_transformed_batches_iter,
     get_transformed_records_iter,
     parse_parquet_details_from_transformed_file,
+    validate_output,
 )
+from abdiff.core.exceptions import OutputValidationError
+from abdiff.core.utils import write_to_dataset
 
 
 def test_collate_ab_transforms_success(
@@ -114,6 +119,54 @@ def test_get_joined_batches_iter_success(transformed_parquet_dataset):
     assert isinstance(joined_batch, pa.RecordBatch)
     assert joined_batch.num_rows <= max_rows_per_file
     assert joined_batch.schema == JOINED_DATASET_SCHEMA
+
+
+def test_validate_output_success(collated_dataset_directory):
+    validate_output(dataset_path=collated_dataset_directory)
+
+
+def test_validate_output_raises_error_if_dataset_is_empty(run_directory):
+    empty_table = pa.Table.from_batches(batches=[], schema=JOINED_DATASET_SCHEMA)
+    empty_dataset_path = Path(run_directory) / "empty_dataset"
+
+    os.makedirs(empty_dataset_path)
+    pq.write_table(empty_table, empty_dataset_path / "empty.parquet")
+    write_to_dataset(empty_table, base_dir=empty_dataset_path)
+
+    with pytest.raises(
+        OutputValidationError, match="The collated dataset does not contain any records."
+    ):
+        validate_output(dataset_path=empty_dataset_path)
+
+
+def test_validate_output_raises_error_if_missing_record_column(run_directory):
+    missing_record_cols_table = pa.Table.from_pylist(
+        [
+            {
+                "timdex_record_id": "abc",
+                "source": "source",
+                "record_a": b"{timdex_record_id: 'abc'}",
+                "record_b": None,
+            }
+        ],
+        schema=JOINED_DATASET_SCHEMA,
+    )
+    missing_record_cols_dataset_path = Path(run_directory) / "missing_record_cols_dataset"
+
+    os.makedirs(missing_record_cols_dataset_path)
+    pq.write_table(
+        missing_record_cols_table,
+        missing_record_cols_dataset_path / "missing_record_cols.parquet",
+    )
+    write_to_dataset(missing_record_cols_table, base_dir=missing_record_cols_dataset_path)
+
+    with pytest.raises(
+        OutputValidationError,
+        match=re.escape(
+            "At least one or both record column(s) ['record_a', 'record_b'] in the collated dataset are empty."  # noqa: E501
+        ),
+    ):
+        validate_output(dataset_path=missing_record_cols_dataset_path)
 
 
 def test_parse_parquet_details_from_transformed_file_success(

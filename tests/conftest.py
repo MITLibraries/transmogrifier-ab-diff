@@ -31,10 +31,15 @@ from abdiff.core.utils import create_subdirectories, load_dataset, write_to_data
 class Container:
     """Stub for docker.models.container.Container object."""
 
-    def __init__(self, id, labels):  # noqa: A002
+    def __init__(self, id, labels, attrs: dict | None = None):  # noqa: A002
         self.id = id
         self.labels = labels
         self.status = "created"
+
+        if attrs:
+            self.attrs = attrs
+        else:
+            self.attrs = {"State": {"ExitCode": 0}}
 
     def reload(self):
         time.sleep(0.1)
@@ -49,8 +54,9 @@ class Container:
 class MockedContainerRun:
     """Class for mocking container runs of Transmogrifier."""
 
-    def __init__(self) -> None:
+    def __init__(self, *, errors: bool = False) -> None:
         self.count = 0
+        self.errors = errors
 
     def yield_mocked_run(self, transformed_directories: tuple[str]) -> None:
         """Perform a mocked run of transmogrifier.
@@ -78,9 +84,8 @@ class MockedContainerRun:
         warnings.warn("All side effects are exhausted.", UserWarning, stacklevel=2)
         return None
 
-    @classmethod
     def create_transformed_files(
-        cls, transformed_directory: str, container_id: str, image_name: str
+        self, transformed_directory: str, container_id: str, image_name: str
     ) -> Container:
         with open(
             Path(transformed_directory)
@@ -88,6 +93,17 @@ class MockedContainerRun:
             "w",
         ) as tmp_file:
             tmp_file.write("Hello world!")
+
+        if self.errors:
+            return Container(
+                id=container_id,
+                labels={
+                    "docker_image": image_name,
+                    "source": "source",
+                    "input_file": "s3://timdex-extract-dev/source/source-2024-01-01-daily-extracted-records-to-index.xml",
+                },
+                attrs={"State": {"ExitCode": 1}},
+            )
         return Container(
             id=container_id,
             labels={
@@ -261,6 +277,11 @@ def mocked_docker_container_b():
 @pytest.fixture
 def mocked_container_runs_iter():
     return MockedContainerRun()
+
+
+@pytest.fixture
+def mocked_container_failed_runs_iter():
+    return MockedContainerRun(errors=True)
 
 
 @pytest.fixture

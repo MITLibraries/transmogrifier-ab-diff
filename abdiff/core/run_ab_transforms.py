@@ -13,7 +13,11 @@ import docker
 from docker.models.containers import Container
 
 from abdiff.config import Config
-from abdiff.core.exceptions import DockerContainerRuntimeExceededTimeoutError
+from abdiff.core.exceptions import (
+    DockerContainerRunFailedError,
+    DockerContainerRuntimeExceededTimeoutError,
+    OutputValidationError,
+)
 from abdiff.core.utils import create_subdirectories, update_or_create_run_json
 
 CONFIG = Config()
@@ -38,8 +42,11 @@ def run_ab_transforms(
            running in parallel.
         3. Wait for all containers to complete.
         4. Aggregate logs from all containers.
-        5. Update run.json with lists describing input and transformed files.
-        5. Return a tuple containing two lists representing all A and B transformed files.
+        5. If any containers exit, raise an error listing the IDs for failed
+           containers.
+        6. Validate the number of files in the A/B transformed file directories.
+        7. Update run.json with lists describing input and transformed files.
+        8. Return a tuple containing two lists representing all A and B transformed files.
 
     Args:
         run_directory (str): Run directory.
@@ -101,22 +108,31 @@ def run_ab_transforms(
             )
             containers.append(container)
 
-    wait_for_containers(containers, timeout)
+    failed_containers = wait_for_containers(containers, timeout)
     logger.info(f"All {len(containers)} containers have exited.")
 
     log_file = aggregate_logs(run_directory, containers)
     logger.info(f"Log file created: {log_file}")
 
-    transformed_files = get_transformed_files(run_directory)
+    # errors from failed containers are accessible via aggregated logs
+    if failed_containers:
+        raise DockerContainerRunFailedError(failed_containers)
 
-    run_data = {"input_files": input_files, "transformed_files": transformed_files}
+    ab_transformed_file_lists = get_transformed_files(run_directory)
+
+    validate_output(ab_transformed_file_lists, len(input_files))
+
+    run_data = {
+        "input_files": input_files,
+        "transformed_files": ab_transformed_file_lists,
+    }
     update_or_create_run_json(run_directory, run_data)
 
     elapsed_time = perf_counter() - start_time
     logger.info(
         "Total time to complete process: %s", str(timedelta(seconds=elapsed_time))
     )
-    return transformed_files
+    return ab_transformed_file_lists
 
 
 def run_docker_container(
@@ -155,13 +171,21 @@ def run_docker_container(
     return container
 
 
-def wait_for_containers(containers: list[Container], timeout: int = 180) -> None:
-    """Given a list of running containers, wait until all containers exit."""
-    exited_containers: list[Container] = []
+def wait_for_containers(
+    containers: list[Container], timeout: int = 180
+) -> None | list[str]:
+    """Given a list of running containers, wait until all containers exit.
+
+    If there are any containers that exited with an error, a list of IDs
+    for failed containers is returned. For more information regarding the
+    specific cause of the error, consult the logs.
+    """
+    exited_containers: list[str] = []
+    failed_containers: list[str] = []
     start_time = time.time()
     while len(exited_containers) < len(containers):
         running_containers = [
-            container for container in containers if container not in exited_containers
+            container for container in containers if container.id not in exited_containers
         ]
         if time.time() - start_time >= timeout:
             raise DockerContainerRuntimeExceededTimeoutError(
@@ -171,8 +195,20 @@ def wait_for_containers(containers: list[Container], timeout: int = 180) -> None
             container.reload()
             if container.status == "exited":
                 logger.info(f"Container {container.id} exited.")
-                exited_containers.append(container)
+                exited_containers.append(container.id)  # type: ignore[arg-type]
+                if (exit_code := container.attrs["State"]["ExitCode"]) == 0:
+                    logger.info(f"Container {container.id} ran successfully.")
+                else:
+                    logger.error(
+                        f"Container {container.id} exited with an error: {exit_code}. "
+                        "Check logs for details."
+                    )
+                    failed_containers.append(container.id)  # type: ignore[arg-type]
         time.sleep(0.25)
+
+    if any(failed_containers):
+        return failed_containers
+    return None
 
 
 def aggregate_logs(run_directory: str, containers: list[Container]) -> str:
@@ -180,12 +216,13 @@ def aggregate_logs(run_directory: str, containers: list[Container]) -> str:
     log_file = str(Path(run_directory) / "transformed/logs.txt")
     with open(log_file, "w") as file:
         for container in containers:
-            header = (
+            file.write(f"container: {container.id}\n")
+            descriptors = (
                 f"docker_image: {container.labels['docker_image']} | "
                 f"source: {container.labels['source']} | "
                 f"input_file: {container.labels['input_file']}\n"
             )
-            file.write(header)
+            file.write(descriptors)
             file.write(container.logs().decode())
             file.write("\n\n")
     return log_file
@@ -209,6 +246,27 @@ def get_transformed_files(run_directory: str) -> tuple[list[str], ...]:
         ]
         ordered_files.append(relative_filepaths)
     return tuple(ordered_files)
+
+
+def validate_output(
+    ab_transformed_file_lists: tuple[list[str], ...], input_files_count: int
+) -> None:
+    """Validate the output of run_ab_transforms.
+
+    This function checks that the number of files in each of the A/B
+    transformed file directories matches the number of input files
+    provided to run_ab_transforms (i.e., the expected number of
+    files that are transformed).
+    """
+    if any(
+        len(transformed_files) != input_files_count
+        for transformed_files in ab_transformed_file_lists
+    ):
+        raise OutputValidationError(  # noqa: TRY003
+            "At least one or more transformed JSON file(s) are missing. "
+            f"Expecting {input_files_count} transformed JSON file(s)."
+            "Check the transformed file directories."
+        )
 
 
 def parse_transform_details_from_extract_filename(input_file: str) -> tuple[str, ...]:

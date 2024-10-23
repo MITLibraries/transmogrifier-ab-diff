@@ -10,6 +10,7 @@ import duckdb
 import ijson
 import pyarrow as pa
 
+from abdiff.core.exceptions import OutputValidationError
 from abdiff.core.utils import write_to_dataset
 
 logger = logging.getLogger(__name__)
@@ -67,6 +68,9 @@ def collate_ab_transforms(
         schema=JOINED_DATASET_SCHEMA,
     )
     logger.info(f"Wrote {len(joined_written_files)} parquet file(s) to collated dataset")
+
+    validate_output(collated_dataset_path)
+
     return collated_dataset_path
 
 
@@ -163,7 +167,7 @@ def get_joined_batches_iter(dataset_directory: str) -> Generator[pa.RecordBatch]
         dataset_directory: The root directory of the Parquet dataset of TIMDEX records
             (i.e., the tempfile.TemporaryDirectory).
     """
-    with duckdb.connect() as con:
+    with duckdb.connect(":memory:") as con:
         transformed_file_names = con.execute(
             """
             SELECT DISTINCT transformed_file_name FROM
@@ -187,8 +191,8 @@ def get_joined_batches_iter(dataset_directory: str) -> Generator[pa.RecordBatch]
                     a AS (SELECT * FROM transformed_file WHERE version='a'),
                     b AS (SELECT * FROM transformed_file WHERE version='b')
                 SELECT
-                    a.timdex_record_id,
-                    a.source,
+                    COALESCE(a.timdex_record_id, b.timdex_record_id) timdex_record_id,
+                    COALESCE(a.source, b.source) source,
                     a.record as record_a,
                     b.record as record_b
                 FROM a
@@ -205,6 +209,50 @@ def get_joined_batches_iter(dataset_directory: str) -> Generator[pa.RecordBatch]
                     yield results.read_next_batch()
                 except StopIteration:
                     break
+
+
+def validate_output(dataset_path: str) -> None:
+    """Validate the output of collate_ab_transforms.
+
+    This function checks whether the collated dataset is empty
+    and whether any or both 'record_a' or 'record_b' columns are
+    totally empty.
+    """
+    with duckdb.connect(":memory:") as con:
+        # create view of collated table
+        con.execute(
+            f"""
+            CREATE VIEW collated AS (
+                SELECT * FROM read_parquet('{f"{dataset_path}/**/*.parquet"}')
+            )
+            """
+        )
+
+        # check if the table is empty
+        record_count = con.execute("SELECT COUNT(*) FROM collated").fetchone()[0]  # type: ignore[index]
+        if record_count == 0:
+            raise OutputValidationError(  # noqa: TRY003
+                "The collated dataset does not contain any records."
+            )
+
+        # check if any of the 'record_*' columns are empty
+        record_a_null_count = con.execute(
+            "SELECT COUNT(*) FROM collated WHERE record_a ISNULL"
+        ).fetchone()[
+            0
+        ]  # type: ignore[index]
+
+        record_b_null_count = con.execute(
+            "SELECT COUNT(*) FROM collated WHERE record_b ISNULL"
+        ).fetchone()[
+            0
+        ]  # type: ignore[index]
+
+        if record_count in {record_a_null_count, record_b_null_count}:
+            raise OutputValidationError(  # noqa: TRY003
+                "At least one or both record column(s) ['record_a', 'record_b'] "
+                "in the collated dataset are empty."
+            )
 
 
 def parse_parquet_details_from_transformed_file(transformed_file: str) -> tuple[str, ...]:
