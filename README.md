@@ -92,7 +92,7 @@ AWS_SESSION_TOKEN=# passed to Transmogrifier containers for use
 ```text
 WEBAPP_HOST=# host for flask webapp
 WEBAPP_PORT=# port for flask webapp
-TRANSMOGRIFIER_MAX_WORKERS=# max number of parallel Transmogrifier docker containers to run; default is 6
+TRANSMOGRIFIER_CONCURRENCY=# max number of parallel Transmogrifier containers to run; default is 6
 TRANSMOGRIFIER_TIMEOUT=# timeout for a single Transmogrifier container; default is 5 hours
 ```
 

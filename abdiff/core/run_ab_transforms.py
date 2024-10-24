@@ -136,7 +136,7 @@ def run_all_docker_containers(
     """
     tasks = []
 
-    with ThreadPoolExecutor(max_workers=CONFIG.transmogrifier_max_workers) as executor:
+    with ThreadPoolExecutor(max_workers=CONFIG.transmogrifier_concurrency) as executor:
         for input_file in input_files:
             source, output_file = parse_transform_details_from_extract_filename(
                 input_file

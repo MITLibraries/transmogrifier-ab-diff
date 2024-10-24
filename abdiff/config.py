@@ -13,7 +13,7 @@ class Config:
     OPTIONAL_ENV_VARS = (
         "WEBAPP_HOST",
         "WEBAPP_PORT",
-        "TRANSMOGRIFIER_MAX_WORKERS",
+        "TRANSMOGRIFIER_CONCURRENCY",
         "TRANSMOGRIFIER_TIMEOUT",
     )
 
@@ -34,14 +34,14 @@ class Config:
         return int(port)
 
     @property
-    def transmogrifier_max_workers(self) -> int:
+    def transmogrifier_concurrency(self) -> int:
         """Maximum number of Transmogrifier containers to run in parallel."""
-        max_workers = self.TRANSMOGRIFIER_MAX_WORKERS or 6
+        max_workers = self.TRANSMOGRIFIER_CONCURRENCY or 6
         return int(max_workers)
 
     @property
     def transmogrifier_timeout(self) -> int:
-        """Timeout for a single docker container."""
+        """Timeout for a single Transmogrifier container."""
         timeout = self.TRANSMOGRIFIER_TIMEOUT or 60 * 60 * 5  # 5 hours default
         return int(timeout)
 
