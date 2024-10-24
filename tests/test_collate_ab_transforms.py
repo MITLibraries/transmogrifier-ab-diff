@@ -14,9 +14,9 @@ from abdiff.core.collate_ab_transforms import (
     TRANSFORMED_DATASET_SCHEMA,
     collate_ab_transforms,
     get_joined_batches_iter,
+    get_transform_version,
     get_transformed_batches_iter,
     get_transformed_records_iter,
-    parse_parquet_details_from_transformed_file,
     validate_output,
 )
 from abdiff.core.exceptions import OutputValidationError
@@ -55,19 +55,21 @@ def test_collate_ab_transforms_success(
         str(Path(collated_dataset_path) / "records-0.parquet")
     ]
     assert len(collated_df) == 10
-    assert set(collated_df["source"].unique()) == {"MIT Alma", "DSpace@MIT"}
+    assert set(collated_df["source"].unique()) == {"alma", "dspace"}
 
     # assert result of full outer join
     missing_in_b = collated_df[collated_df["record_b"].isna()]
     assert len(missing_in_b) == 1
-    assert missing_in_b["source"].to_list() == ["MIT Alma"]
+    assert missing_in_b["source"].to_list() == ["alma"]
 
 
 def test_get_transformed_records_iter_success(example_transformed_directory):
     """Validates the structure of the yielded TIMDEX record dictionaries."""
     records_iter = get_transformed_records_iter(
-        transformed_file=Path(example_transformed_directory)
-        / "a/alma-2024-08-29-daily-transformed-records-to-index.json"
+        transformed_file=str(
+            Path(example_transformed_directory)
+            / "a/alma-2024-08-29-daily-transformed-records-to-index.json"
+        )
     )
     timdex_record_dict = next(records_iter)
 
@@ -82,7 +84,7 @@ def test_get_transformed_records_iter_success(example_transformed_directory):
     assert timdex_record_dict["version"] == "a"
     assert (
         timdex_record_dict["transformed_file_name"]
-        == "alma-2024-08-29-daily-transformed-records-to-index"
+        == "alma-2024-08-29-daily-transformed-records-to-index.json"
     )
 
 
@@ -169,24 +171,15 @@ def test_validate_output_raises_error_if_missing_record_column(run_directory):
         validate_output(dataset_path=missing_record_cols_dataset_path)
 
 
-def test_parse_parquet_details_from_transformed_file_success(
-    transformed_directories, output_filename
-):
+def test_get_transform_version_success(transformed_directories, output_filename):
     transformed_directory_a, transformed_directory_b = transformed_directories
     transformed_file_a = str(Path(transformed_directory_a) / output_filename)
     transformed_file_b = str(Path(transformed_directory_b) / output_filename)
-    transformed_filename = output_filename.replace(".json", "")  # remove file .ext
 
-    assert parse_parquet_details_from_transformed_file(transformed_file_a) == (
-        "a",
-        transformed_filename,
-    )
-    assert parse_parquet_details_from_transformed_file(transformed_file_b) == (
-        "b",
-        transformed_filename,
-    )
+    assert get_transform_version(transformed_file_a) == "a"
+    assert get_transform_version(transformed_file_b) == "b"
 
 
-def test_parse_parquet_details_from_transformed_file_raise_error(output_filename):
-    with pytest.raises(ValueError, match="Transformed filename is invalid"):
-        parse_parquet_details_from_transformed_file(output_filename)
+def test_get_transform_version_raise_error():
+    with pytest.raises(ValueError, match="Transformed filepath is invalid."):
+        get_transform_version("invalid")

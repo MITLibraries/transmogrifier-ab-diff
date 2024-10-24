@@ -11,13 +11,14 @@ from abdiff.core.exceptions import (
 )
 from abdiff.core.run_ab_transforms import (
     aggregate_logs,
+    get_transformed_filename,
     get_transformed_files,
-    parse_transform_details_from_extract_filename,
     run_ab_transforms,
     run_docker_container,
     validate_output,
     wait_for_containers,
 )
+from abdiff.core.utils import parse_timdex_filename
 from tests.conftest import MockedContainerRun
 
 
@@ -110,13 +111,13 @@ def test_run_docker_container_success(
     )
 
     input_file = "s3://timdex-extract-dev/source/source-2024-01-01-daily-extracted-records-to-index.xml"
-    source, output_file = parse_transform_details_from_extract_filename(input_file)
+    filename_details = parse_timdex_filename(input_file)
     container = run_docker_container(
         docker_image=image_name,
         transformed_directory=transformed_directory,
-        source=source,
+        source=filename_details["source"],
         input_file=input_file,
-        output_file=output_file,
+        output_file=get_transformed_filename(filename_details),
         docker_client=mocked_docker_client,
     )
     assert container.id == mocked_docker_container.id
@@ -197,22 +198,35 @@ def test_validate_output_error():
         validate_output(ab_transformed_file_lists=([], []), input_files_count=1)
 
 
-def test_parse_transform_details_from_extract_filename_success(input_file):
-    source, output_file = parse_transform_details_from_extract_filename(input_file)
-    assert source == "source"
-    assert output_file == "source-2024-01-01-full-transformed-records-to-index.json"
-
-
-def test_parse_transform_details_from_extract_filename_if_sequenced_success():
-    input_file = "s3://timdex-extract-dev/source/source-2024-01-01-full-extracted-records-to-index_01.xml"
-    source, output_filename = parse_transform_details_from_extract_filename(input_file)
-    assert source == "source"
+def test_get_output_filename_success():
     assert (
-        output_filename == "source-2024-01-01-full-transformed-records-to-index_01.json"
+        get_transformed_filename(
+            {
+                "source": "source",
+                "date": "2024-01-01",
+                "cadence": "full",
+                "stage": "extracted",
+                "action": "index",
+                "index": None,
+                "file_type": "xml",
+            }
+        )
+        == "source-2024-01-01-full-transformed-records-to-index.xml"
     )
 
 
-def test_parse_transform_details_from_extract_filename_raise_error():
-    input_file = "s3://timdex-extract-dev/source/-2024-01-01-full-extracted-records-to-index_01.xml"
-    with pytest.raises(ValueError, match="Extract filename is invalid"):
-        parse_transform_details_from_extract_filename(input_file)
+def test_get_output_filename_indexed_success():
+    assert (
+        get_transformed_filename(
+            {
+                "source": "source",
+                "date": "2024-01-01",
+                "cadence": "full",
+                "stage": "extracted",
+                "action": "index",
+                "index": "01",
+                "file_type": "xml",
+            }
+        )
+        == "source-2024-01-01-full-transformed-records-to-index_01.xml"
+    )

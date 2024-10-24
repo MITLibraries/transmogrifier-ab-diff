@@ -3,7 +3,6 @@
 import glob
 import logging
 import os
-import re
 import time
 from datetime import timedelta
 from pathlib import Path
@@ -18,7 +17,11 @@ from abdiff.core.exceptions import (
     DockerContainerRuntimeExceededTimeoutError,
     OutputValidationError,
 )
-from abdiff.core.utils import create_subdirectories, update_or_create_run_json
+from abdiff.core.utils import (
+    create_subdirectories,
+    parse_timdex_filename,
+    update_or_create_run_json,
+)
 
 CONFIG = Config()
 
@@ -96,14 +99,14 @@ def run_ab_transforms(
 
     containers = []
     for input_file in input_files:
-        source, output_file = parse_transform_details_from_extract_filename(input_file)
+        filename_details = parse_timdex_filename(input_file)
         for docker_image, transformed_directory in run_configs:
             container = run_docker_container(
                 docker_image,
                 transformed_directory,
-                source,
+                filename_details["source"],  # type: ignore[arg-type]
                 input_file,
-                output_file,
+                get_transformed_filename(filename_details),
                 docker_client,
             )
             containers.append(container)
@@ -269,22 +272,13 @@ def validate_output(
         )
 
 
-def parse_transform_details_from_extract_filename(input_file: str) -> tuple[str, ...]:
-    """Parse transform details from extract filename.
-
-    Namely, the source and the output filename are parsed from the extract
-    filename. These variables are required by the transform command.
-    """
-    extract_filename = input_file.split("/")[-1]
-    match_result = re.match(
-        r"^([\w\-]+?)-(\d{4}-\d{2}-\d{2})-(\w+)-extracted-records-to-index(?:_(\d+))?\.\w+$",
-        extract_filename,
+def get_transformed_filename(filename_details: dict) -> str:
+    """Get transformed filename using extract filename details."""
+    filename_details.update(
+        stage="transformed",
+        index=f"_{sequence}" if (sequence := filename_details["index"]) else "",
     )
-    if not match_result:
-        raise ValueError(  # noqa: TRY003
-            f"Extract filename is invalid: {extract_filename}."
-        )
-    source, date, cadence, sequence = match_result.groups()
-    sequence_suffix = f"_{sequence}" if sequence else ""
-    output_filename = f"{source}-{date}-{cadence}-transformed-records-to-index{sequence_suffix}.json"  # noqa: E501
-    return source, output_filename
+    output_filename = (
+        "{source}-{date}-{cadence}-{stage}-records-to-index{index}.{file_type}"
+    )
+    return output_filename.format(**filename_details)

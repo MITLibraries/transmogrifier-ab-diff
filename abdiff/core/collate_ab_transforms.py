@@ -11,7 +11,7 @@ import ijson
 import pyarrow as pa
 
 from abdiff.core.exceptions import OutputValidationError
-from abdiff.core.utils import write_to_dataset
+from abdiff.core.utils import parse_timdex_filename, write_to_dataset
 
 logger = logging.getLogger(__name__)
 
@@ -75,8 +75,8 @@ def collate_ab_transforms(
 
 
 def get_transformed_records_iter(
-    transformed_file: str | Path,
-) -> Generator[dict[str, str | bytes]]:
+    transformed_file: str,
+) -> Generator[dict[str, str | bytes | None]]:
     """Yields data for every TIMDEX record in a transformed file.
 
     This function uses ijson to yield records from a JSON stream
@@ -91,17 +91,16 @@ def get_transformed_records_iter(
       transformed file.
     * transformed_file_name: The name of the transformed file, excluding file extension.
     """
-    version, transformed_file_name = parse_parquet_details_from_transformed_file(
-        str(transformed_file)
-    )
+    version = get_transform_version(transformed_file)
+    filename_details = parse_timdex_filename(transformed_file)
     with open(transformed_file, "rb") as file:
         for record in ijson.items(file, "item"):
             yield {
                 "timdex_record_id": record["timdex_record_id"],
-                "source": record["source"],
+                "source": filename_details["source"],
                 "record": json.dumps(record).encode(),
                 "version": version,
-                "transformed_file_name": transformed_file_name,
+                "transformed_file_name": transformed_file.split("/")[-1],
             }
 
 
@@ -124,7 +123,7 @@ def get_transformed_batches_iter(
     for transformed_files in ab_transformed_file_lists:
         for transformed_file in transformed_files:
             record_iter = get_transformed_records_iter(
-                transformed_file=Path(run_directory) / transformed_file
+                transformed_file=str(Path(run_directory) / transformed_file)
             )
             for record_batch in itertools.batched(record_iter, READ_BATCH_SIZE):
                 yield pa.RecordBatch.from_pylist(list(record_batch))
@@ -255,19 +254,15 @@ def validate_output(dataset_path: str) -> None:
             )
 
 
-def parse_parquet_details_from_transformed_file(transformed_file: str) -> tuple[str, ...]:
-    """Parse parquet details from the absolute path of a transformed file.
-
-    This will retrieve the transmogrifier image version ('a' or 'b') and
-    the transformed filename.
-    """
+def get_transform_version(transformed_filepath: str) -> str:
+    """Get A/B transform version, either 'a' or 'b'."""
     match_result = re.match(
-        r".*transformed\/(.*)\/(.*).json",
-        transformed_file,
+        r".*transformed\/(.*)\/.*.json",
+        transformed_filepath,
     )
     if not match_result:
         raise ValueError(  # noqa: TRY003
-            f"Transformed filename is invalid: {transformed_file}."
+            f"Transformed filepath is invalid: {transformed_filepath}."
         )
-    version, filename = match_result.groups()
-    return version, filename
+
+    return match_result.groups()[0]
