@@ -6,6 +6,15 @@ Compare transformed TIMDEX records from two versions (A,B) of Transmogrifier.
 
 `abdiff` is the name of the CLI application in this repository that performs an A/B test of Transmogrifier.
 
+## Development
+
+- To preview a list of available Makefile commands: `make help`
+- To install with dev dependencies: `make install`
+- To update dependencies: `make update`
+- To run unit tests: `make test`
+- To lint the repo: `make lint`
+- To run the app: `pipenv run abdiff --help`
+
 ## Concepts
 
 A **Job** in `abdiff` represents the A/B test for comparing the results from two versions of Transmogrifier.  When a job is first created, a working directory and a JSON file `job.json` with an initial set of configurations is created.
@@ -82,7 +91,9 @@ AWS_SESSION_TOKEN=# passed to Transmogrifier containers for use
 
 ```text
 WEBAPP_HOST=# host for flask webapp
-WEBAPP_PORT# port for flask webapp
+WEBAPP_PORT=# port for flask webapp
+TRANSMOGRIFIER_MAX_WORKERS=# max number of parallel Transmogrifier docker containers to run; default is 6
+TRANSMOGRIFIER_TIMEOUT=# timeout for a single Transmogrifier container; default is 5 hours
 ```
 
 ## CLI commands
@@ -146,29 +157,4 @@ Options:
   -d, --job-directory TEXT  Job directory to view in webapp.  [required]
   -h, --help                Show this message and exit.
 ```
-
-## Development
-
-- To preview a list of available Makefile commands: `make help`
-- To install with dev dependencies: `make install`
-- To update dependencies: `make update`
-- To run unit tests: `make test`
-- To lint the repo: `make lint`
-- To run the app: `pipenv run abdiff --help`
-
-## Environment Variables
-
-### Required
-
-```shell
-WORKSPACE=### Set to `dev` for local development, this will be set to `stage` and `prod` in those environments by Terraform.
-```
-
-### Optional
-
-```shell
-```
-
-
-
 

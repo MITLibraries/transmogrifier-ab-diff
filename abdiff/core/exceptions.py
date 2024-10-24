@@ -3,30 +3,25 @@ class DockerContainersNotFoundError(Exception):
         super().__init__(f"No Docker containers were found with label run='{run_id}'.")
 
 
-class DockerContainerRuntimeExceededTimeoutError(Exception):
-    def __init__(self, containers: list, timeout: int) -> None:
-        self.containers = containers
+class DockerContainerTimeoutError(Exception):
+    def __init__(self, container_id: str | None, timeout: int) -> None:
+        self.container_id = container_id
         self.timeout = timeout
         super().__init__(self.get_formatted_message())
 
     def get_formatted_message(self) -> str:
-        container_ids = [container.id for container in self.containers]
-        return (
-            f"Timeout of {self.timeout} seconds exceeded."
-            f"{len(container_ids)} container(s) is/are still running:"
-            f"{container_ids}."
-        )
+        return f"Container {self.container_id} exceed timeout of {self.timeout} seconds."
 
 
 # core function errors
-class DockerContainerRunFailedError(Exception):
-    def __init__(self, containers: list) -> None:
-        self.containers = containers
+class DockerContainerRuntimeError(Exception):
+    def __init__(self, container_id: str) -> None:
+        self.container_id = container_id
         super().__init__(self.get_formatted_message())
 
     def get_formatted_message(self) -> str:
         return (
-            f"The following Docker containers exited with an error: {self.containers}. "
+            f"Container {self.container_id} did not exit cleanly. "
             "Check the logs in transformed/logs.txt to identify the error."
         )
 

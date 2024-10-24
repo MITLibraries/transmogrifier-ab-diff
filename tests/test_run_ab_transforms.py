@@ -1,24 +1,24 @@
-# ruff: noqa: ARG005
+# ruff: noqa: ARG005, PLR2004, S108
 import os
 from pathlib import Path
+from unittest import mock
 
 import pytest
 
 from abdiff.core.exceptions import (
-    DockerContainerRunFailedError,
-    DockerContainerRuntimeExceededTimeoutError,
+    DockerContainerTimeoutError,
     OutputValidationError,
 )
 from abdiff.core.run_ab_transforms import (
     aggregate_logs,
+    collect_container_results,
     get_transformed_files,
     parse_transform_details_from_extract_filename,
     run_ab_transforms,
     run_docker_container,
     validate_output,
-    wait_for_containers,
 )
-from tests.conftest import MockedContainerRun
+from tests.conftest import MockedContainerRun, MockedFutureSuccess
 
 
 def test_run_ab_transforms_success(
@@ -70,7 +70,10 @@ def test_run_ab_transforms_raise_error_if_containers_failed(
         )
     )
 
-    with pytest.raises(DockerContainerRunFailedError):
+    with pytest.raises(
+        RuntimeError,
+        match="2 / 2 containers failed to complete successfully.",
+    ):
         run_ab_transforms(
             run_directory=run_directory,
             image_tag_a="transmogrifier-example-job-1-abc123:latest",
@@ -124,26 +127,6 @@ def test_run_docker_container_success(
         Path(transformed_directory)
         / "source-2024-01-01-daily-transformed-records-to-index.json"
     )
-
-
-def test_wait_for_containers_success(
-    caplog, mocked_docker_container_a, mocked_docker_container_b
-):
-    wait_for_containers(containers=[mocked_docker_container_a, mocked_docker_container_b])
-    assert "Container abc123 exited." in caplog.text
-    assert "Container def456 exited." in caplog.text
-    assert mocked_docker_container_a.status == "exited"
-    assert mocked_docker_container_b.status == "exited"
-
-
-def test_wait_for_containers_raise_error(
-    mocked_docker_container_a, mocked_docker_container_b
-):
-    with pytest.raises(DockerContainerRuntimeExceededTimeoutError):
-        wait_for_containers(
-            containers=[mocked_docker_container_a, mocked_docker_container_b],
-            timeout=0,  # force timeout
-        )
 
 
 def test_aggregate_logs_success(
@@ -216,3 +199,75 @@ def test_parse_transform_details_from_extract_filename_raise_error():
     input_file = "s3://timdex-extract-dev/source/-2024-01-01-full-extracted-records-to-index_01.xml"
     with pytest.raises(ValueError, match="Extract filename is invalid"):
         parse_transform_details_from_extract_filename(input_file)
+
+
+def test_run_docker_container_timeout_triggered(
+    mocked_docker_client, mocked_docker_container_a
+):
+    mocked_docker_client.containers.run.return_value = mocked_docker_container_a
+    mocked_docker_container_a.run_duration = 2
+    timeout = 1
+    with pytest.raises(
+        DockerContainerTimeoutError,
+        match="Container abc123 exceed timeout of 1 seconds.",
+    ):
+        run_docker_container(
+            "abc123",
+            "abc",
+            "alma",
+            "/tmp/input.xml",
+            "/tmp/output.json",
+            mocked_docker_client,
+            timeout=timeout,
+        )
+
+
+def test_run_docker_container_timeout_not_triggered(
+    mocked_docker_client, mocked_docker_container_a
+):
+    mocked_docker_client.containers.run.return_value = mocked_docker_container_a
+    mocked_docker_container_a.run_duration = 2
+    timeout = 3
+    container = run_docker_container(
+        "abc123",
+        "abc",
+        "alma",
+        "/tmp/input.xml",
+        "/tmp/output.json",
+        mocked_docker_client,
+        timeout=timeout,
+    )
+    assert container.status == "exited"
+
+
+def test_collect_containers_two_success_return_two_containers(
+    mocked_docker_container_a, mocked_docker_container_b
+):
+    futures = [
+        MockedFutureSuccess(container=mocked_docker_container_a),
+        MockedFutureSuccess(container=mocked_docker_container_b),
+    ]
+
+    containers, exceptions = collect_container_results(futures)
+    assert len(containers) == 2
+    assert containers == [mocked_docker_container_a, mocked_docker_container_b]
+
+
+def test_collect_containers_return_containers_and_exceptions(
+    mocked_docker_container_a, mocked_docker_container_b
+):
+    futures = [
+        MockedFutureSuccess(container=mocked_docker_container_a),
+        MockedFutureSuccess(container=mocked_docker_container_b),
+    ]
+
+    mocked_exception = Exception("Container failure!")
+    with mock.patch.object(futures[1], "result") as mocked_result_method:
+        mocked_result_method.side_effect = mocked_exception
+
+        containers, exceptions = collect_container_results(futures)
+
+    assert len(containers) == 1
+    assert len(exceptions) == 1
+    assert containers[0] == mocked_docker_container_a
+    assert exceptions[0] == mocked_exception
