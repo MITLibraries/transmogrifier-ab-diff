@@ -8,6 +8,7 @@ import pytest
 from abdiff.core import init_job
 from abdiff.core.utils import (
     create_subdirectories,
+    parse_timdex_filename,
     read_job_json,
     update_or_create_job_json,
     write_to_dataset,
@@ -54,6 +55,53 @@ def test_create_sub_directories_success(tmp_path):
     )
     assert os.path.exists(subdirectory_a)
     assert os.path.exists(subdirectory_b)
+
+
+def test_parse_timdex_filename_s3_uri_success():
+    assert parse_timdex_filename(
+        "s3://timdex-extract-dev/source/source-2024-01-01-full-extracted-records-to-index.xml"
+    ) == {
+        "source": "source",
+        "date": "2024-01-01",
+        "cadence": "full",
+        "stage": "extracted",
+        "action": "index",
+        "index": None,
+        "file_type": "xml",
+    }
+
+
+def test_parse_timdex_filename_indexed_s3_uri_success():
+    assert parse_timdex_filename(
+        "s3://timdex-extract-dev/source/source-2024-01-01-full-extracted-records-to-index_01.xml"
+    ) == {
+        "source": "source",
+        "date": "2024-01-01",
+        "cadence": "full",
+        "stage": "extracted",
+        "action": "index",
+        "index": "01",
+        "file_type": "xml",
+    }
+
+
+def test_parse_timdex_filename_filename_success():
+    assert parse_timdex_filename(
+        "source-2024-01-01-full-extracted-records-to-index.xml"
+    ) == {
+        "source": "source",
+        "date": "2024-01-01",
+        "cadence": "full",
+        "stage": "extracted",
+        "action": "index",
+        "index": None,
+        "file_type": "xml",
+    }
+
+
+def test_parse_timdex_filename_raise_error_if_invalid_filename():
+    with pytest.raises(ValueError, match="Provided S3 URI and filename is invalid."):
+        parse_timdex_filename(s3_uri_or_filename="invalid")
 
 
 def test_write_to_dataset_success(tmp_path):
