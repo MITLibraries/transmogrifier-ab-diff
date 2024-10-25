@@ -1313,7 +1313,7 @@
                 "sha256:faa88bc527d0f097abdc2c663cddf37c05a1c2f113716601555249805cf573f1",
                 "sha256:fc44e3c68ff00fd991b59092a54350e6e4911152682b4782f68070985aa9e648"
             ],
-            "markers": "python_version >= '3.12'",
+            "markers": "python_version >= '3.10'",
             "version": "==2.1.2"
         },
         "packaging": {
@@ -1443,18 +1443,17 @@
                 "sha256:f7ae2de664e0b158d1607699a16a488de3d008ba99b3a7aa5de1cbc13574d047",
                 "sha256:fa3c246cc58cb5a4a5cb407a18f193354ea47dd0648194e6265bd24177982fe8"
             ],
-            "index": "pypi",
             "markers": "python_version >= '3.8'",
             "version": "==17.0.0"
         },
         "pyarrow-stubs": {
             "hashes": [
-                "sha256:b7c1085d8cf3224c0fd105a16d063ea3b76d8b38d42044a13200b3e2cbf7c302",
-                "sha256:c59c8163e30f3146d6b0b060aa67623d5d18b292b17e8a53016906c499920b3c"
+                "sha256:6c124339acae4f81c59a9e55acc9a90cf5ddb3694ad4fb498a053fedf152097d",
+                "sha256:eefabb58522402fbaca9957de3cb0439f12e4791fe34533238b66587bf8b3ed2"
             ],
             "index": "pypi",
             "markers": "python_version >= '3.8' and python_version < '4'",
-            "version": "==17.9"
+            "version": "==17.10"
         },
         "pygments": {
             "hashes": [
