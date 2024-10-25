@@ -45,7 +45,8 @@ def run_ab_transforms(
         7. Return a tuple containing two lists representing all A and B transformed files.
 
     Parallelization is handled by invoking the Docker containers via threads, limited by
-    the ThreadPoolExecutor.max_workers argument.
+    the ThreadPoolExecutor.max_workers argument.  Each thread invokes a detached Docker
+    container and manages its lifecycle until completion.
 
     Args:
         run_directory (str): Run directory.
@@ -136,7 +137,7 @@ def run_all_docker_containers(
     """
     tasks = []
 
-    with ThreadPoolExecutor(max_workers=CONFIG.transmogrifier_concurrency) as executor:
+    with ThreadPoolExecutor(max_workers=CONFIG.transmogrifier_max_workers) as executor:
         for input_file in input_files:
             source, output_file = parse_transform_details_from_extract_filename(
                 input_file
