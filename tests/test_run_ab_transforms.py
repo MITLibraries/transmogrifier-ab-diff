@@ -114,7 +114,7 @@ def test_run_docker_container_success(
 
     input_file = "s3://timdex-extract-dev/source/source-2024-01-01-daily-extracted-records-to-index.xml"
     source, output_file = parse_transform_details_from_extract_filename(input_file)
-    container = run_docker_container(
+    container, exception = run_docker_container(
         docker_image=image_name,
         transformed_directory=transformed_directory,
         source=source,
@@ -207,19 +207,16 @@ def test_run_docker_container_timeout_triggered(
     mocked_docker_client.containers.run.return_value = mocked_docker_container_a
     mocked_docker_container_a.run_duration = 2
     timeout = 1
-    with pytest.raises(
-        DockerContainerTimeoutError,
-        match="Container abc123 exceed timeout of 1 seconds.",
-    ):
-        run_docker_container(
-            "abc123",
-            "abc",
-            "alma",
-            "/tmp/input.xml",
-            "/tmp/output.json",
-            mocked_docker_client,
-            timeout=timeout,
-        )
+    container, exception = run_docker_container(
+        "abc123",
+        "abc",
+        "alma",
+        "/tmp/input.xml",
+        "/tmp/output.json",
+        mocked_docker_client,
+        timeout=timeout,
+    )
+    assert isinstance(exception, DockerContainerTimeoutError)
 
 
 def test_run_docker_container_timeout_not_triggered(
@@ -228,7 +225,7 @@ def test_run_docker_container_timeout_not_triggered(
     mocked_docker_client.containers.run.return_value = mocked_docker_container_a
     mocked_docker_container_a.run_duration = 2
     timeout = 3
-    container = run_docker_container(
+    container, exception = run_docker_container(
         "abc123",
         "abc",
         "alma",
@@ -240,34 +237,54 @@ def test_run_docker_container_timeout_not_triggered(
     assert container.status == "exited"
 
 
-def test_collect_containers_two_success_return_two_containers(
+def test_run_docker_container_unhandled_error_still_returns_container_and_exception(
+    mocked_docker_client, mocked_docker_container_a
+):
+    mocked_docker_client.containers.run.return_value = mocked_docker_container_a
+
+    mocked_exception = Exception("Error checking container status!")
+    with mock.patch.object(mocked_docker_container_a, "reload") as mocked_reload:
+        mocked_reload.side_effect = mocked_exception
+        container, exception = run_docker_container(
+            "abc123",
+            "abc",
+            "alma",
+            "/tmp/input.xml",
+            "/tmp/output.json",
+            mocked_docker_client,
+        )
+
+    assert container == mocked_docker_container_a
+    assert exception == mocked_exception
+
+
+def test_collect_containers_two_success_return_zero_exceptions(
     mocked_docker_container_a, mocked_docker_container_b
 ):
     futures = [
-        MockedFutureSuccess(container=mocked_docker_container_a),
-        MockedFutureSuccess(container=mocked_docker_container_b),
+        MockedFutureSuccess(container=mocked_docker_container_a, exception=None),
+        MockedFutureSuccess(container=mocked_docker_container_b, exception=None),
     ]
 
     containers, exceptions = collect_container_results(futures)
     assert len(containers) == 2
     assert containers == [mocked_docker_container_a, mocked_docker_container_b]
+    assert len(exceptions) == 0
 
 
 def test_collect_containers_return_containers_and_exceptions(
     mocked_docker_container_a, mocked_docker_container_b
 ):
-    futures = [
-        MockedFutureSuccess(container=mocked_docker_container_a),
-        MockedFutureSuccess(container=mocked_docker_container_b),
-    ]
-
     mocked_exception = Exception("Container failure!")
-    with mock.patch.object(futures[1], "result") as mocked_result_method:
-        mocked_result_method.side_effect = mocked_exception
+    futures = [
+        MockedFutureSuccess(container=mocked_docker_container_a, exception=None),
+        MockedFutureSuccess(
+            container=mocked_docker_container_b,
+            exception=mocked_exception,
+        ),
+    ]
+    containers, exceptions = collect_container_results(futures)
 
-        containers, exceptions = collect_container_results(futures)
-
-    assert len(containers) == 1
+    assert len(containers) == 2
     assert len(exceptions) == 1
-    assert containers[0] == mocked_docker_container_a
     assert exceptions[0] == mocked_exception

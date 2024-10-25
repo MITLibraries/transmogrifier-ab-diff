@@ -128,11 +128,12 @@ class MockedContainerRun:
 
 class MockedFutureSuccess(Future):
 
-    def __init__(self, container: Container | None = None):
+    def __init__(self, container: Container, exception: Exception | None = None):
         self.container = container
+        self.exception = exception
 
     def result(self, timeout=None):  # noqa: ARG002
-        return self.container
+        return self.container, self.exception
 
 
 @pytest.fixture(autouse=True)

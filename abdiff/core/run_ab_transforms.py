@@ -103,7 +103,7 @@ def run_ab_transforms(
     logger.info(f"Log file created: {log_file}")
     if exceptions:
         raise RuntimeError(  # noqa: TRY003
-            f"{len(exceptions)} / {len(containers) + len(exceptions)} containers failed "
+            f"{len(exceptions)} / {len(containers)} containers failed "
             "to complete successfully."
         )
     ab_transformed_file_lists = get_transformed_files(run_directory)
@@ -165,7 +165,7 @@ def run_docker_container(
     output_file: str,
     docker_client: docker.client.DockerClient,
     timeout: int = CONFIG.transmogrifier_timeout,
-) -> Container:
+) -> tuple[Container, Exception | None]:
     """Run Transmogrifier via Docker container to transform input file.
 
     The container is run in a detached state to capture a container handle for later use
@@ -196,20 +196,31 @@ def run_docker_container(
         f"RUNNING transform for '{source}' input_file: {input_file}."
     )
 
-    start_time = perf_counter()
-    while True:
-        time.sleep(0.5)
-        container.reload()
-        if container.status == "exited":
-            logger.info(f"Container {container.id} exited.")
-            break
+    exception = None
+    try:
+        start_time = perf_counter()
+        while True:
+            time.sleep(0.5)
+            container.reload()
+            if container.status == "exited":
+                logger.info(f"Container {container.id} exited.")
+                break
 
-        if time.perf_counter() - start_time > timeout:
-            logger.error(f"Container {container.id} timed out after {timeout} seconds")
-            container.stop()
-            raise DockerContainerTimeoutError(container_id=container.id, timeout=timeout)
+            if time.perf_counter() - start_time > timeout:
+                logger.error(
+                    f"Container {container.id} timed out after {timeout} seconds"
+                )
+                container.stop()
+                exception = DockerContainerTimeoutError(
+                    container_id=container.id, timeout=timeout
+                )
+                break
 
-    return container
+    except Exception as e:
+        exception = e  # type: ignore[assignment]
+        logger.exception("Unhandled exception while waiting for container to complete.")
+
+    return container, exception
 
 
 def collect_container_results(
@@ -217,25 +228,28 @@ def collect_container_results(
 ) -> tuple[list[Container], list[Exception]]:
     """Collect results of container executions.
 
+    Each future will contain a tuple of (Container, Exception) where the exception may
+    be None.  A success is considered when the container exited cleanly and no exceptions
+    are present.
+
     Returns a tuple of (Containers (success), Exceptions (failure)) from all executions.
     """
-    successes = []
-    failures = []
+    containers = []
+    exceptions = []
     for future in futures:
+        container, exception = future.result()
+        containers.append(container)
 
-        try:
-            container = future.result()
-        except Exception as e:  # noqa: BLE001; capture any exception
-            failures.append(e)
-            continue
+        if exception:
+            exceptions.append(exception)
+        if container.attrs["State"]["ExitCode"] != 0:
+            exceptions.append(DockerContainerRuntimeError(container.id))
 
-        if container.attrs["State"]["ExitCode"] == 0:
-            successes.append(container)
-        else:
-            failures.append(DockerContainerRuntimeError(container.id))
-
-    logger.info(f"Completed: {len(successes)} successes, {len(failures)} failures")
-    return successes, failures
+    logger.info(
+        f"Container results collected: {len(containers) - len(exceptions)} successes, "
+        f"{len(exceptions)} failures"
+    )
+    return containers, exceptions
 
 
 def aggregate_logs(run_directory: str, containers: list[Container]) -> str:
