@@ -191,10 +191,10 @@ def test_get_output_filename_success():
                 "stage": "extracted",
                 "action": "index",
                 "index": None,
-                "file_type": "xml",
+                "file_type": "json",
             }
         )
-        == "source-2024-01-01-full-transformed-records-to-index.xml"
+        == "source-2024-01-01-full-transformed-records-to-index.json"
     )
 
 
@@ -297,8 +297,8 @@ def test_get_output_filename_indexed_success():
                 "stage": "extracted",
                 "action": "index",
                 "index": "01",
-                "file_type": "xml",
+                "file_type": "json",
             }
         )
-        == "source-2024-01-01-full-transformed-records-to-index_01.xml"
+        == "source-2024-01-01-full-transformed-records-to-index_01.json"
     )
