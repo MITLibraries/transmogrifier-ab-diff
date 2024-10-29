@@ -12,12 +12,13 @@ from abdiff.core.exceptions import (
 from abdiff.core.run_ab_transforms import (
     aggregate_logs,
     collect_container_results,
+    get_transformed_filename,
     get_transformed_files,
-    parse_transform_details_from_extract_filename,
     run_ab_transforms,
     run_docker_container,
     validate_output,
 )
+from abdiff.core.utils import parse_timdex_filename
 from tests.conftest import MockedContainerRun, MockedFutureSuccess
 
 
@@ -113,13 +114,13 @@ def test_run_docker_container_success(
     )
 
     input_file = "s3://timdex-extract-dev/source/source-2024-01-01-daily-extracted-records-to-index.xml"
-    source, output_file = parse_transform_details_from_extract_filename(input_file)
-    container, exception = run_docker_container(
+    filename_details = parse_timdex_filename(input_file)
+    container, _ = run_docker_container(
         docker_image=image_name,
         transformed_directory=transformed_directory,
-        source=source,
+        source=filename_details["source"],
         input_file=input_file,
-        output_file=output_file,
+        output_file=get_transformed_filename(filename_details),
         docker_client=mocked_docker_client,
     )
     assert container.id == mocked_docker_container.id
@@ -180,25 +181,21 @@ def test_validate_output_error():
         validate_output(ab_transformed_file_lists=([], []), input_files_count=1)
 
 
-def test_parse_transform_details_from_extract_filename_success(input_file):
-    source, output_file = parse_transform_details_from_extract_filename(input_file)
-    assert source == "source"
-    assert output_file == "source-2024-01-01-full-transformed-records-to-index.json"
-
-
-def test_parse_transform_details_from_extract_filename_if_sequenced_success():
-    input_file = "s3://timdex-extract-dev/source/source-2024-01-01-full-extracted-records-to-index_01.xml"
-    source, output_filename = parse_transform_details_from_extract_filename(input_file)
-    assert source == "source"
+def test_get_output_filename_success():
     assert (
-        output_filename == "source-2024-01-01-full-transformed-records-to-index_01.json"
+        get_transformed_filename(
+            {
+                "source": "source",
+                "run-date": "2024-01-01",
+                "run-type": "full",
+                "stage": "extracted",
+                "action": "index",
+                "index": None,
+                "file_type": "xml",
+            }
+        )
+        == "source-2024-01-01-full-transformed-records-to-index.xml"
     )
-
-
-def test_parse_transform_details_from_extract_filename_raise_error():
-    input_file = "s3://timdex-extract-dev/source/-2024-01-01-full-extracted-records-to-index_01.xml"
-    with pytest.raises(ValueError, match="Extract filename is invalid"):
-        parse_transform_details_from_extract_filename(input_file)
 
 
 def test_run_docker_container_timeout_triggered(
@@ -207,7 +204,7 @@ def test_run_docker_container_timeout_triggered(
     mocked_docker_client.containers.run.return_value = mocked_docker_container_a
     mocked_docker_container_a.run_duration = 2
     timeout = 1
-    container, exception = run_docker_container(
+    _, exception = run_docker_container(
         "abc123",
         "abc",
         "alma",
@@ -225,7 +222,7 @@ def test_run_docker_container_timeout_not_triggered(
     mocked_docker_client.containers.run.return_value = mocked_docker_container_a
     mocked_docker_container_a.run_duration = 2
     timeout = 3
-    container, exception = run_docker_container(
+    container, _ = run_docker_container(
         "abc123",
         "abc",
         "alma",
@@ -288,3 +285,20 @@ def test_collect_containers_return_containers_and_exceptions(
     assert len(containers) == 2
     assert len(exceptions) == 1
     assert exceptions[0] == mocked_exception
+
+
+def test_get_output_filename_indexed_success():
+    assert (
+        get_transformed_filename(
+            {
+                "source": "source",
+                "run-date": "2024-01-01",
+                "run-type": "full",
+                "stage": "extracted",
+                "action": "index",
+                "index": "01",
+                "file_type": "xml",
+            }
+        )
+        == "source-2024-01-01-full-transformed-records-to-index_01.xml"
+    )

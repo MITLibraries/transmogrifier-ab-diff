@@ -2,6 +2,7 @@
 
 import json
 import os
+import re
 from collections.abc import Iterable
 from pathlib import Path
 
@@ -76,6 +77,29 @@ def create_subdirectories(
 def load_dataset(base_dir: str | Path) -> ds.Dataset:
     """Standardized way of reading of parquet datasets in application."""
     return ds.dataset(base_dir, partitioning="hive")
+
+
+def parse_timdex_filename(s3_uri_or_filename: str) -> dict[str, str | None]:
+    """Parse details from filename."""
+    filename = s3_uri_or_filename.split("/")[-1]
+
+    match_result = re.match(
+        r"^([\w\-]+?)-(\d{4}-\d{2}-\d{2})-(\w+)-(\w+)-records-to-(.+?)(?:_(\d+))?\.(\w+)$",
+        filename,
+    )
+
+    keys = ["source", "run-date", "run-type", "stage", "action", "index", "file_type"]
+    if not match_result:
+        raise ValueError(  # noqa: TRY003
+            f"Provided S3 URI and filename is invalid: {filename}."
+        )
+
+    try:
+        return dict(zip(keys, match_result.groups(), strict=True))
+    except ValueError as exception:
+        raise ValueError(  # noqa: TRY003
+            f"Provided S3 URI and filename is invalid: {filename}."
+        ) from exception
 
 
 def write_to_dataset(
