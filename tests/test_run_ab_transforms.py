@@ -186,8 +186,8 @@ def test_get_output_filename_success():
         get_transformed_filename(
             {
                 "source": "source",
-                "date": "2024-01-01",
-                "cadence": "full",
+                "run-date": "2024-01-01",
+                "run-type": "full",
                 "stage": "extracted",
                 "action": "index",
                 "index": None,
@@ -292,8 +292,8 @@ def test_get_output_filename_indexed_success():
         get_transformed_filename(
             {
                 "source": "source",
-                "date": "2024-01-01",
-                "cadence": "full",
+                "run-date": "2024-01-01",
+                "run-type": "full",
                 "stage": "extracted",
                 "action": "index",
                 "index": "01",

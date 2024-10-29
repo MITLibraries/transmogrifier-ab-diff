@@ -88,7 +88,7 @@ def parse_timdex_filename(s3_uri_or_filename: str) -> dict[str, str | None]:
         filename,
     )
 
-    keys = ["source", "date", "cadence", "stage", "action", "index", "file_type"]
+    keys = ["source", "run-date", "run-type", "stage", "action", "index", "file_type"]
     if not match_result:
         raise ValueError(  # noqa: TRY003
             f"Provided S3 URI and filename is invalid: {filename}."

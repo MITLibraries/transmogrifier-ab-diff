@@ -62,8 +62,8 @@ def test_parse_timdex_filename_s3_uri_success():
         "s3://timdex-extract-dev/source/source-2024-01-01-full-extracted-records-to-index.xml"
     ) == {
         "source": "source",
-        "date": "2024-01-01",
-        "cadence": "full",
+        "run-date": "2024-01-01",
+        "run-type": "full",
         "stage": "extracted",
         "action": "index",
         "index": None,
@@ -76,8 +76,8 @@ def test_parse_timdex_filename_indexed_s3_uri_success():
         "s3://timdex-extract-dev/source/source-2024-01-01-full-extracted-records-to-index_01.xml"
     ) == {
         "source": "source",
-        "date": "2024-01-01",
-        "cadence": "full",
+        "run-date": "2024-01-01",
+        "run-type": "full",
         "stage": "extracted",
         "action": "index",
         "index": "01",
@@ -90,8 +90,8 @@ def test_parse_timdex_filename_filename_success():
         "source-2024-01-01-full-extracted-records-to-index.xml"
     ) == {
         "source": "source",
-        "date": "2024-01-01",
-        "cadence": "full",
+        "run-date": "2024-01-01",
+        "run-type": "full",
         "stage": "extracted",
         "action": "index",
         "index": None,
