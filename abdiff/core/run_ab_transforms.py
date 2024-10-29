@@ -5,6 +5,7 @@ import logging
 import os
 import re
 import time
+from concurrent.futures import Future, ThreadPoolExecutor
 from datetime import timedelta
 from pathlib import Path
 from time import perf_counter
@@ -14,8 +15,8 @@ from docker.models.containers import Container
 
 from abdiff.config import Config
 from abdiff.core.exceptions import (
-    DockerContainerRunFailedError,
-    DockerContainerRuntimeExceededTimeoutError,
+    DockerContainerRuntimeError,
+    DockerContainerTimeoutError,
     OutputValidationError,
 )
 from abdiff.core.utils import create_subdirectories, update_or_create_run_json
@@ -31,22 +32,21 @@ def run_ab_transforms(
     image_tag_b: str,
     input_files: list[str],
     docker_client: docker.client.DockerClient | None = None,
-    timeout: int = 600,
 ) -> tuple[list[str], ...]:
     """Run Docker containers with versioned images of Transmogrifier.
 
-    The following steps are perfomed in sequential order:
+    The following steps are performed in sequential order:
         1. Directories are created to capture the transformed files.
-        2. For all input files, an A and B version of Transmogrifier is run
-           via detached Docker containers, resulting in all containers
-           running in parallel.
+        2. For all input files, an A and B version of Transmogrifier is run.
         3. Wait for all containers to complete.
         4. Aggregate logs from all containers.
-        5. If any containers exit, raise an error listing the IDs for failed
-           containers.
-        6. Validate the number of files in the A/B transformed file directories.
-        7. Update run.json with lists describing input and transformed files.
-        8. Return a tuple containing two lists representing all A and B transformed files.
+        5. Validate output.
+        6. Update run.json with lists describing input and transformed files.
+        7. Return a tuple containing two lists representing all A and B transformed files.
+
+    Parallelization is handled by invoking the Docker containers via threads, limited by
+    the ThreadPoolExecutor.max_workers argument.  Each thread invokes a detached Docker
+    container and manages its lifecycle until completion.
 
     Args:
         run_directory (str): Run directory.
@@ -56,8 +56,6 @@ def run_ab_transforms(
             URIs for input files on S3 are accepted.
         docker_client (docker.client.DockerClient | None, optional): Docker client.
             Defaults to None.
-        timeout (int, optional): Timeout for Docker container runs. An error is raised
-            if any Docker container runs exceed the timeout. Defaults to 180 secondss.
 
     Returns:
         tuple[list[str], ...]: A tuple containing two lists, where each list contains
@@ -78,9 +76,9 @@ def run_ab_transforms(
     """
     start_time = perf_counter()
 
+    # initialize environment
     if not docker_client:
         docker_client = docker.from_env()
-
     transformed_directory_a, transformed_directory_b = create_subdirectories(
         base_directory=run_directory, subdirectories=["transformed/a", "transformed/b"]
     )
@@ -88,51 +86,75 @@ def run_ab_transforms(
         "Transformed directories created: "
         f"{[transformed_directory_a, transformed_directory_b]}"
     )
-
     run_configs = [
         (image_tag_a, transformed_directory_a),
         (image_tag_b, transformed_directory_b),
     ]
 
-    containers = []
-    for input_file in input_files:
-        source, output_file = parse_transform_details_from_extract_filename(input_file)
-        for docker_image, transformed_directory in run_configs:
-            container = run_docker_container(
-                docker_image,
-                transformed_directory,
-                source,
-                input_file,
-                output_file,
-                docker_client,
-            )
-            containers.append(container)
+    # run containers and collect results
+    futures = run_all_docker_containers(docker_client, input_files, run_configs)
+    containers, exceptions = collect_container_results(futures)
+    logger.info(
+        f"Successful containers: {len(containers)}, failed containers: {len(exceptions)}"
+    )
 
-    failed_containers = wait_for_containers(containers, timeout)
-    logger.info(f"All {len(containers)} containers have exited.")
-
+    # process results
     log_file = aggregate_logs(run_directory, containers)
     logger.info(f"Log file created: {log_file}")
-
-    # errors from failed containers are accessible via aggregated logs
-    if failed_containers:
-        raise DockerContainerRunFailedError(failed_containers)
-
+    if exceptions:
+        raise RuntimeError(  # noqa: TRY003
+            f"{len(exceptions)} / {len(containers)} containers failed "
+            "to complete successfully."
+        )
     ab_transformed_file_lists = get_transformed_files(run_directory)
-
     validate_output(ab_transformed_file_lists, len(input_files))
 
+    # write and return results
     run_data = {
         "input_files": input_files,
         "transformed_files": ab_transformed_file_lists,
     }
     update_or_create_run_json(run_directory, run_data)
-
     elapsed_time = perf_counter() - start_time
     logger.info(
         "Total time to complete process: %s", str(timedelta(seconds=elapsed_time))
     )
     return ab_transformed_file_lists
+
+
+def run_all_docker_containers(
+    docker_client: docker.client.DockerClient,
+    input_files: list[str],
+    run_configs: list[tuple],
+) -> list[Future]:
+    """Invoke Docker containers to run in parallel via threads.
+
+    By default, when ThreadPoolExecutor is invoked via a context manager it will wait for
+    all tasks to complete before exiting the context manager.  While each container is run
+    in a detached mode, the function run_docker_container() waits for the container to
+    exit making it effectively blocking.  The net result: this function will run all
+    containers to completion, returning the completed tasks (Future objects) as a list.
+    """
+    tasks = []
+
+    with ThreadPoolExecutor(max_workers=CONFIG.transmogrifier_max_workers) as executor:
+        for input_file in input_files:
+            source, output_file = parse_transform_details_from_extract_filename(
+                input_file
+            )
+            for docker_image, transformed_directory in run_configs:
+                args = (
+                    docker_image,
+                    transformed_directory,
+                    source,
+                    input_file,
+                    output_file,
+                    docker_client,
+                )
+                tasks.append(executor.submit(run_docker_container, *args))
+
+    logger.info(f"All {len(tasks)} containers have exited.")
+    return tasks
 
 
 def run_docker_container(
@@ -142,8 +164,13 @@ def run_docker_container(
     input_file: str,
     output_file: str,
     docker_client: docker.client.DockerClient,
-) -> Container:
-    """Run transmogrifier via Docker container to transform input file."""
+    timeout: int = CONFIG.transmogrifier_timeout,
+) -> tuple[Container, Exception | None]:
+    """Run Transmogrifier via Docker container to transform input file.
+
+    The container is run in a detached state to capture a container handle for later use
+    but this function waits for the container to exit before returning.
+    """
     container = docker_client.containers.run(
         docker_image,
         command=[
@@ -168,47 +195,61 @@ def run_docker_container(
         f"Container '{container.id}' (Docker image: {docker_image}) "
         f"RUNNING transform for '{source}' input_file: {input_file}."
     )
-    return container
 
-
-def wait_for_containers(
-    containers: list[Container], timeout: int = 180
-) -> None | list[str]:
-    """Given a list of running containers, wait until all containers exit.
-
-    If there are any containers that exited with an error, a list of IDs
-    for failed containers is returned. For more information regarding the
-    specific cause of the error, consult the logs.
-    """
-    exited_containers: list[str] = []
-    failed_containers: list[str] = []
-    start_time = time.time()
-    while len(exited_containers) < len(containers):
-        running_containers = [
-            container for container in containers if container.id not in exited_containers
-        ]
-        if time.time() - start_time >= timeout:
-            raise DockerContainerRuntimeExceededTimeoutError(
-                containers=running_containers, timeout=timeout
-            )
-        for container in running_containers:
+    exception = None
+    try:
+        start_time = perf_counter()
+        while True:
+            time.sleep(0.5)
             container.reload()
             if container.status == "exited":
                 logger.info(f"Container {container.id} exited.")
-                exited_containers.append(container.id)  # type: ignore[arg-type]
-                if (exit_code := container.attrs["State"]["ExitCode"]) == 0:
-                    logger.info(f"Container {container.id} ran successfully.")
-                else:
-                    logger.error(
-                        f"Container {container.id} exited with an error: {exit_code}. "
-                        "Check logs for details."
-                    )
-                    failed_containers.append(container.id)  # type: ignore[arg-type]
-        time.sleep(0.25)
+                break
 
-    if any(failed_containers):
-        return failed_containers
-    return None
+            if time.perf_counter() - start_time > timeout:
+                logger.error(
+                    f"Container {container.id} timed out after {timeout} seconds"
+                )
+                container.stop()
+                exception = DockerContainerTimeoutError(
+                    container_id=container.id, timeout=timeout
+                )
+                break
+
+    except Exception as e:
+        exception = e  # type: ignore[assignment]
+        logger.exception("Unhandled exception while waiting for container to complete.")
+
+    return container, exception
+
+
+def collect_container_results(
+    futures: list[Future],
+) -> tuple[list[Container], list[Exception]]:
+    """Collect results of container executions.
+
+    Each future will contain a tuple of (Container, Exception) where the exception may
+    be None.  A success is considered when the container exited cleanly and no exceptions
+    are present.
+
+    Returns a tuple of (Containers (success), Exceptions (failure)) from all executions.
+    """
+    containers = []
+    exceptions = []
+    for future in futures:
+        container, exception = future.result()
+        containers.append(container)
+
+        if exception:
+            exceptions.append(exception)
+        if container.attrs["State"]["ExitCode"] != 0:
+            exceptions.append(DockerContainerRuntimeError(container.id))
+
+    logger.info(
+        f"Container results collected: {len(containers) - len(exceptions)} successes, "
+        f"{len(exceptions)} failures"
+    )
+    return containers, exceptions
 
 
 def aggregate_logs(run_directory: str, containers: list[Container]) -> str:
@@ -264,7 +305,7 @@ def validate_output(
     ):
         raise OutputValidationError(  # noqa: TRY003
             "At least one or more transformed JSON file(s) are missing. "
-            f"Expecting {input_files_count} transformed JSON file(s)."
+            f"Expecting {input_files_count} transformed JSON file(s) per A/B version. "
             "Check the transformed file directories."
         )
 

@@ -2,10 +2,10 @@
 
 import json
 import os
-import random
 import shutil
 import time
 import warnings
+from concurrent.futures import Future
 from pathlib import Path
 from unittest.mock import MagicMock
 
@@ -35,6 +35,8 @@ class Container:
         self.id = id
         self.labels = labels
         self.status = "created"
+        self.run_duration = 0.5
+        self.start_time = time.time()
 
         if attrs:
             self.attrs = attrs
@@ -42,13 +44,23 @@ class Container:
             self.attrs = {"State": {"ExitCode": 0}}
 
     def reload(self):
+        """Simulate reload the status of a Docker container.
+
+        Checking if a detached Container has completed is performed by running its
+        reload method.  This waits 0.1s, then only resolves to 'exited' if the container
+        instance has existed longer than self.run_duration, thereby simulating a total
+        running time of X seconds.
+        """
         time.sleep(0.1)
-        if random.randint(0, 100) > 50:  # noqa: PLR2004, S311
+        if time.time() - self.start_time >= self.run_duration:
             self.status = "exited"
 
     def logs(self):
         with open("tests/fixtures/transmogrifier-logs.txt", "rb") as file:
             return file.read()
+
+    def stop(self):
+        pass
 
 
 class MockedContainerRun:
@@ -112,6 +124,16 @@ class MockedContainerRun:
                 "input_file": "s3://timdex-extract-dev/source/source-2024-01-01-daily-extracted-records-to-index.xml",
             },
         )
+
+
+class MockedFutureSuccess(Future):
+
+    def __init__(self, container: Container, exception: Exception | None = None):
+        self.container = container
+        self.exception = exception
+
+    def result(self, timeout=None):  # noqa: ARG002
+        return self.container, self.exception
 
 
 @pytest.fixture(autouse=True)

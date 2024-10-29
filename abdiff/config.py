@@ -13,6 +13,8 @@ class Config:
     OPTIONAL_ENV_VARS = (
         "WEBAPP_HOST",
         "WEBAPP_PORT",
+        "TRANSMOGRIFIER_MAX_WORKERS",
+        "TRANSMOGRIFIER_TIMEOUT",
     )
 
     def __getattr__(self, name: str) -> Any:  # noqa: ANN401
@@ -30,6 +32,18 @@ class Config:
     def webapp_port(self) -> int:
         port = self.WEBAPP_PORT or "5000"
         return int(port)
+
+    @property
+    def transmogrifier_max_workers(self) -> int:
+        """Maximum number of Transmogrifier containers to run in parallel."""
+        max_workers = self.TRANSMOGRIFIER_MAX_WORKERS or 6
+        return int(max_workers)
+
+    @property
+    def transmogrifier_timeout(self) -> int:
+        """Timeout for a single Transmogrifier container."""
+        timeout = self.TRANSMOGRIFIER_TIMEOUT or 60 * 60 * 5  # 5 hours default
+        return int(timeout)
 
 
 def configure_logger(logger: logging.Logger, *, verbose: bool) -> str:
