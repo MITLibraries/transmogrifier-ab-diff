@@ -10,6 +10,7 @@ from pathlib import Path
 
 import duckdb
 import ijson
+import pandas as pd
 import pyarrow as pa
 
 from abdiff.core.exceptions import OutputValidationError
@@ -119,17 +120,34 @@ def get_transformed_records_iter(
     """
     version = get_transform_version(transformed_file)
     filename_details = parse_timdex_filename(transformed_file)
-    with open(transformed_file, "rb") as file:
-        for record in ijson.items(file, "item"):
+
+    base_record = {
+        "source": filename_details["source"],
+        "run_date": filename_details["run-date"],
+        "run_type": filename_details["run-type"],
+        "action": filename_details["action"],
+        "version": version,
+        "transformed_file_name": transformed_file.split("/")[-1],
+    }
+
+    # handle JSON files with records to index
+    if transformed_file.endswith(".json"):
+        with open(transformed_file, "rb") as file:
+            for record in ijson.items(file, "item"):
+                yield {
+                    **base_record,
+                    "timdex_record_id": record["timdex_record_id"],
+                    "record": json.dumps(record).encode(),
+                }
+
+    # handle TXT files with records to delete
+    else:
+        deleted_records_df = pd.read_csv(transformed_file, header=None)
+        for row in deleted_records_df.itertuples():
             yield {
-                "timdex_record_id": record["timdex_record_id"],
-                "source": filename_details["source"],
-                "run_date": filename_details["run-date"],  # use underscore for DuckDB
-                "run_type": filename_details["run-type"],  # use underscore for DuckDB
-                "action": filename_details["action"],
-                "record": json.dumps(record).encode(),
-                "version": version,
-                "transformed_file_name": transformed_file.split("/")[-1],
+                **base_record,
+                "timdex_record_id": row[1],
+                "record": None,
             }
 
 
@@ -364,10 +382,7 @@ def validate_output(dataset_path: str) -> None:
 
 def get_transform_version(transformed_filepath: str) -> str:
     """Get A/B transform version, either 'a' or 'b'."""
-    match_result = re.match(
-        r".*transformed\/(.*)\/.*.json",
-        transformed_filepath,
-    )
+    match_result = re.match(r".*transformed\/(.*)\/.*", transformed_filepath)
     if not match_result:
         raise ValueError(f"Transformed filepath is invalid: {transformed_filepath}.")
 

@@ -75,7 +75,7 @@ def test_get_transformed_records_iter_success(example_transformed_directory):
     )
     timdex_record_dict = next(records_iter)
 
-    assert list(timdex_record_dict.keys()) == [
+    assert set(timdex_record_dict.keys()) == {
         "timdex_record_id",
         "source",
         "run_date",
@@ -84,7 +84,7 @@ def test_get_transformed_records_iter_success(example_transformed_directory):
         "record",
         "version",
         "transformed_file_name",
-    ]
+    }
     assert isinstance(timdex_record_dict["record"], bytes)
     assert timdex_record_dict["version"] == "a"
     assert (
@@ -104,7 +104,7 @@ def test_get_transformed_batches_iter_success(
 
     assert isinstance(transformed_batch, pa.RecordBatch)
     assert transformed_batch.num_rows <= READ_BATCH_SIZE
-    assert transformed_batch.schema.names == TRANSFORMED_DATASET_SCHEMA.names
+    assert set(transformed_batch.schema.names) == set(TRANSFORMED_DATASET_SCHEMA.names)
 
 
 def test_get_joined_batches_iter_success(transformed_parquet_dataset):
