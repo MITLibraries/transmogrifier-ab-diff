@@ -1,9 +1,11 @@
 import json
 import logging
 from datetime import timedelta
+from itertools import chain
 from time import perf_counter
 
 import click
+import pandas as pd
 from click.exceptions import ClickException
 
 from abdiff.config import Config, configure_logger
@@ -17,6 +19,7 @@ from abdiff.core import (
 )
 from abdiff.core import init_job as core_init_job
 from abdiff.core.utils import read_job_json
+from abdiff.helpers.timdex_sources import get_ordered_extracted_files_all_sources
 from abdiff.webapp.app import app
 
 logger = logging.getLogger(__name__)
@@ -132,14 +135,30 @@ def init_job(
     "--input-files",
     type=str,
     required=True,
-    help="Input files to transform.",
+    help=(
+        "Input files to transform.  This may be a comma separated list of input files, "
+        "or a local CSV file that provides a list of files."
+    ),
 )
-def run_diff(job_directory: str, input_files: str) -> None:
+@click.option(
+    "-m",
+    "--message",
+    type=str,
+    required=False,
+    help="Message to describe Run.",
+    default="Not provided.",
+)
+def run_diff(job_directory: str, input_files: str, message: str) -> None:
 
     job_data = read_job_json(job_directory)
-    run_directory = init_run(job_directory)
+    run_directory = init_run(job_directory, message=message)
 
-    input_files_list = [filepath.strip() for filepath in input_files.split(",")]
+    # handle CSV file containing input files
+    if input_files.endswith(".csv"):
+        input_files_list = pd.read_csv(input_files, header=None)[0].tolist()
+    # else, assume comma separated list of extract files
+    else:
+        input_files_list = [filepath.strip() for filepath in input_files.split(",")]
 
     ab_transformed_file_lists = run_ab_transforms(
         run_directory=run_directory,
@@ -181,3 +200,41 @@ def view_job(
     app.config.update(JOB_DIRECTORY=job_directory)
     logger.info("")
     app.run(host=config.webapp_host, port=config.webapp_port)
+
+
+@main.command()
+@click.option(
+    "-o",
+    "--output-file",
+    type=str,
+    required=True,
+    help="Output filepath for CSV.",
+)
+@click.option(
+    "-s",
+    "--sources",
+    type=str,
+    required=False,
+    help="Optional comma separated list of sources to include.  Default is all.",
+)
+def timdex_sources_csv(output_file: str, sources: str) -> None:
+    """Generate a CSV of ordered extract files for all, or a subset, of TIMDEX sources.
+
+    This CSV may be passed to CLI command 'run-diff' for the '-i / --input-files'
+    argument, serving as the list of input files for the run.
+
+    This command requires that env var 'TIMDEX_BUCKET' is set to establish what S3 bucket
+    to use for scanning.  The appropriate AWS credentials are also needed to be set.
+    """
+    sources_list = None
+    if sources:
+        sources_list = [source.strip() for source in sources.split(",")]
+
+    input_files = get_ordered_extracted_files_all_sources(sources=sources_list)
+
+    input_files_df = pd.DataFrame(
+        columns=["input_file"],
+        data=[*chain.from_iterable(v for v in input_files.values())],
+    )
+    input_files_df.to_csv(output_file, index=False, header=False)
+    logger.info(f"Created file: {output_file}")

@@ -94,6 +94,7 @@ WEBAPP_HOST=# host for flask webapp
 WEBAPP_PORT=# port for flask webapp
 TRANSMOGRIFIER_MAX_WORKERS=# max number of Transmogrifier containers to run in parallel; default is 6
 TRANSMOGRIFIER_TIMEOUT=# timeout for a single Transmogrifier container; default is 5 hours
+TIMDEX_BUCKET=# when using CLI command 'timdex-sources-csv', this is required to know what TIMDEX bucket to use
 ```
 
 ## CLI commands
@@ -143,7 +144,10 @@ Usage: -c run-diff [OPTIONS]
 
 Options:
   -d, --job-directory TEXT  Job directory to create.  [required]
-  -i, --input-files TEXT    Input files to transform.  [required]
+  -i, --input-files TEXT    Input files to transform.  This may be a comma
+                            separated list of input files, or a local CSV file
+                            that provides a list of files.  [required]
+  -m, --message TEXT        Message to describe Run.
   -h, --help                Show this message and exit.
 ```
 
@@ -158,3 +162,23 @@ Options:
   -h, --help                Show this message and exit.
 ```
 
+### `timdex-sources-csv`
+```text
+Usage: -c timdex-sources-csv [OPTIONS]
+
+  Generate a CSV of ordered extract files for all, or a subset, of TIMDEX
+  sources.
+
+  This CSV may be passed to CLI command 'run-diff' for the '-i / --input-
+  files' argument, serving as the list of input files for the run.
+
+  This command requires that env var 'TIMDEX_BUCKET' is set to establish what
+  S3 bucket to use for scanning.  The appropriate AWS credentials are also
+  needed to be set.
+
+Options:
+  -o, --output-file TEXT  Output filepath for CSV.  [required]
+  -s, --sources TEXT      Optional comma separated list of sources to include.
+                          Default is all.
+  -h, --help              Show this message and exit.
+```

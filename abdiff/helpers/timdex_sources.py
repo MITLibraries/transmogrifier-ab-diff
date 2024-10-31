@@ -29,7 +29,7 @@ def get_extracted_files_for_source(
             for obj in page["Contents"]:
                 if not obj["Key"].endswith("/"):  # skip folders
                     s3_uri = f"s3://{bucket}/{obj['Key']}"
-                    files.append(s3_uri)  # noqa: PERF401
+                    files.append(s3_uri)
 
     # filter where "extracted" in filename
     return [file for file in files if "extracted" in file]
