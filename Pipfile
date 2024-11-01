@@ -19,6 +19,7 @@ deepdiff = "*"
 
 [dev-packages]
 black = "*"
+boto3-stubs = {version = "*", extras = ["s3"]}
 coveralls = "*"
 freezegun = "*"
 ipython = "*"

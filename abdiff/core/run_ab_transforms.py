@@ -35,6 +35,8 @@ def run_ab_transforms(
     image_tag_b: str,
     input_files: list[str],
     docker_client: docker.client.DockerClient | None = None,
+    *,
+    use_local_s3: bool = False,
 ) -> tuple[list[str], ...]:
     """Run Docker containers with versioned images of Transmogrifier.
 
@@ -59,6 +61,10 @@ def run_ab_transforms(
             URIs for input files on S3 are accepted.
         docker_client (docker.client.DockerClient | None, optional): Docker client.
             Defaults to None.
+        use_local_s3 (bool): Boolean indicating whether the container should
+            access input files from a local MinIO server (i.e., "local S3 bucket")
+            or from AWS S3. This flag determines the appropriate environment variables
+            to set for the Docker containers. Default is False.
 
     Returns:
         tuple[list[str], ...]: A tuple containing two lists, where each list contains
@@ -95,7 +101,9 @@ def run_ab_transforms(
     ]
 
     # run containers and collect results
-    futures = run_all_docker_containers(docker_client, input_files, run_configs)
+    futures = run_all_docker_containers(
+        docker_client, input_files, run_configs, use_local_s3=use_local_s3
+    )
     containers, exceptions = collect_container_results(futures)
     logger.info(
         f"Successful containers: {len(containers)}, failed containers: {len(exceptions)}"
@@ -129,6 +137,8 @@ def run_all_docker_containers(
     docker_client: docker.client.DockerClient,
     input_files: list[str],
     run_configs: list[tuple],
+    *,
+    use_local_s3: bool = False,
 ) -> list[Future]:
     """Invoke Docker containers to run in parallel via threads.
 
@@ -152,7 +162,11 @@ def run_all_docker_containers(
                     get_transformed_filename(filename_details),
                     docker_client,
                 )
-                tasks.append(executor.submit(run_docker_container, *args))
+                tasks.append(
+                    executor.submit(
+                        run_docker_container, *args, use_local_s3=use_local_s3
+                    )
+                )
 
     logger.info(f"All {len(tasks)} containers have exited.")
     return tasks
@@ -166,12 +180,27 @@ def run_docker_container(
     output_file: str,
     docker_client: docker.client.DockerClient,
     timeout: int = CONFIG.transmogrifier_timeout,
+    *,
+    use_local_s3: bool = False,
 ) -> tuple[Container, Exception | None]:
     """Run Transmogrifier via Docker container to transform input file.
 
     The container is run in a detached state to capture a container handle for later use
     but this function waits for the container to exit before returning.
     """
+    if use_local_s3:
+        environment_variables = {
+            "AWS_ENDPOINT_URL": CONFIG.minio_s3_container_url,
+            "AWS_ACCESS_KEY_ID": CONFIG.minio_root_user,
+            "AWS_SECRET_ACCESS_KEY": CONFIG.minio_root_password,
+        }
+    else:
+        environment_variables = {
+            "AWS_ACCESS_KEY_ID": CONFIG.AWS_ACCESS_KEY_ID,
+            "AWS_SECRET_ACCESS_KEY": CONFIG.AWS_SECRET_ACCESS_KEY,
+            "AWS_SESSION_TOKEN": CONFIG.AWS_SESSION_TOKEN,
+        }
+
     container = docker_client.containers.run(
         docker_image,
         command=[
@@ -180,11 +209,7 @@ def run_docker_container(
             f"--source={source}",
         ],
         detach=True,
-        environment={
-            "AWS_ACCESS_KEY_ID": CONFIG.AWS_ACCESS_KEY_ID,
-            "AWS_SECRET_ACCESS_KEY": CONFIG.AWS_SECRET_ACCESS_KEY,
-            "AWS_SESSION_TOKEN": CONFIG.AWS_SESSION_TOKEN,
-        },
+        environment=environment_variables,
         labels={
             "docker_image": docker_image,
             "source": source,
