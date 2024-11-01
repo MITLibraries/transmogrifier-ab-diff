@@ -166,19 +166,86 @@ def test_get_transformed_files_success(
     )
 
 
-def test_validate_output_success():
+@pytest.mark.parametrize(
+    ("ab_files", "input_files"),
+    [
+        # single JSON from single file
+        (
+            (
+                ["dspace-2024-04-10-daily-extracted-records-to-index.json"],
+                ["dspace-2024-04-10-daily-extracted-records-to-index.json"],
+            ),
+            ["s3://X/dspace-2024-04-10-daily-extracted-records-to-index.xml"],
+        ),
+        # JSON and TXT from single file
+        (
+            (
+                [
+                    "dspace-2024-04-10-daily-extracted-records-to-index.json",
+                    "dspace-2024-04-10-daily-extracted-records-to-delete.txt",
+                ],
+                [
+                    "dspace-2024-04-10-daily-extracted-records-to-index.json",
+                    "dspace-2024-04-10-daily-extracted-records-to-delete.txt",
+                ],
+            ),
+            ["s3://X/dspace-2024-04-10-daily-extracted-records-to-index.xml"],
+        ),
+        # handles indexed files when multiple
+        (
+            (
+                ["alma-2024-04-10-daily-extracted-records-to-index_09.json"],
+                ["alma-2024-04-10-daily-extracted-records-to-index_09.json"],
+            ),
+            ["s3://X/alma-2024-04-10-daily-extracted-records-to-index_09.xml"],
+        ),
+        # handles deletes only for alma deletes
+        (
+            (
+                ["alma-2024-04-10-daily-extracted-records-to-delete.txt"],
+                ["alma-2024-04-10-daily-extracted-records-to-delete.txt"],
+            ),
+            ["s3://X/alma-2024-04-10-daily-extracted-records-to-delete.xml"],
+        ),
+    ],
+)
+def test_validate_output_success(ab_files, input_files):
     assert (
         validate_output(
-            ab_transformed_file_lists=(["transformed/a/file1"], ["transformed/b/file2"]),
-            input_files_count=1,
+            ab_transformed_file_lists=ab_files,
+            input_files=input_files,
         )
         is None
     )
 
 
-def test_validate_output_error():
+@pytest.mark.parametrize(
+    ("ab_files", "input_files"),
+    [
+        # nothing returned
+        (
+            ([], []),
+            ["s3://X/dspace-2024-04-10-daily-extracted-records-to-index.xml"],
+        ),
+        # output files don't have index, or wrong index, so not direct match
+        (
+            (
+                [
+                    "alma-2024-04-10-daily-extracted-records-to-index.json",
+                    "alma-2024-04-10-daily-extracted-records-to-index_04.json",
+                ],
+                [
+                    "alma-2024-04-10-daily-extracted-records-to-index.json",
+                    "alma-2024-04-10-daily-extracted-records-to-index_04.json",
+                ],
+            ),
+            ["s3://X/alma-2024-04-10-daily-extracted-records-to-index_09.xml"],
+        ),
+    ],
+)
+def test_validate_output_error(ab_files, input_files):
     with pytest.raises(OutputValidationError):
-        validate_output(ab_transformed_file_lists=([], []), input_files_count=1)
+        validate_output(ab_transformed_file_lists=ab_files, input_files=input_files)
 
 
 def test_get_output_filename_success():
@@ -191,10 +258,10 @@ def test_get_output_filename_success():
                 "stage": "extracted",
                 "action": "index",
                 "index": None,
-                "file_type": "xml",
+                "file_type": "json",
             }
         )
-        == "source-2024-01-01-full-transformed-records-to-index.xml"
+        == "source-2024-01-01-full-transformed-records-to-index.json"
     )
 
 
@@ -297,8 +364,8 @@ def test_get_output_filename_indexed_success():
                 "stage": "extracted",
                 "action": "index",
                 "index": "01",
-                "file_type": "xml",
+                "file_type": "json",
             }
         )
-        == "source-2024-01-01-full-transformed-records-to-index_01.xml"
+        == "source-2024-01-01-full-transformed-records-to-index_01.json"
     )

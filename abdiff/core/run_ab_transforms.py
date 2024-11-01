@@ -110,7 +110,7 @@ def run_ab_transforms(
             "to complete successfully."
         )
     ab_transformed_file_lists = get_transformed_files(run_directory)
-    validate_output(ab_transformed_file_lists, len(input_files))
+    validate_output(ab_transformed_file_lists, input_files)
 
     # write and return results
     run_data = {
@@ -278,11 +278,11 @@ def get_transformed_files(run_directory: str) -> tuple[list[str], ...]:
 
     Returns:
         tuple[list[str]]: Tuple containing lists of paths to transformed
-            JSON files for each image, relative to 'run_directory'.
+            JSON and TXT (deletions) files for each image, relative to 'run_directory'.
     """
     ordered_files = []
     for version in ["a", "b"]:
-        absolute_filepaths = glob.glob(f"{run_directory}/transformed/{version}/*.json")
+        absolute_filepaths = glob.glob(f"{run_directory}/transformed/{version}/*")
         relative_filepaths = [
             os.path.relpath(file, run_directory) for file in absolute_filepaths
         ]
@@ -291,24 +291,39 @@ def get_transformed_files(run_directory: str) -> tuple[list[str], ...]:
 
 
 def validate_output(
-    ab_transformed_file_lists: tuple[list[str], ...], input_files_count: int
+    ab_transformed_file_lists: tuple[list[str], ...], input_files: list[str]
 ) -> None:
     """Validate the output of run_ab_transforms.
 
-    This function checks that the number of files in each of the A/B
-    transformed file directories matches the number of input files
-    provided to run_ab_transforms (i.e., the expected number of
-    files that are transformed).
+    Transmogrifier produces JSON files for records that need indexing, and TXT files for
+    records that need deletion.  Every run of Transmogrifier should produce one OR both of
+    these.  Some TIMDEX sources provide one file to Transmogrifier that contains both
+    records to index and delete, and others provide separate files for each.
+
+    The net effect for validation is that, given an input file, we should expect to see
+    1+ files in the A and B output for that input file, ignoring if it's records to index
+    or delete.
     """
-    if any(
-        len(transformed_files) != input_files_count
-        for transformed_files in ab_transformed_file_lists
-    ):
-        raise OutputValidationError(  # noqa: TRY003
-            "At least one or more transformed JSON file(s) are missing. "
-            f"Expecting {input_files_count} transformed JSON file(s) per A/B version. "
-            "Check the transformed file directories."
-        )
+    for input_file in input_files:
+        file_parts = parse_timdex_filename(input_file)
+        logger.debug(f"Validating output for input file root: {file_parts}")
+
+        file_found = False
+        for version_files in ab_transformed_file_lists:
+            for version_file in version_files:
+                if (
+                    file_parts["source"] in version_file  # type: ignore[operator]
+                    and file_parts["run-date"] in version_file  # type: ignore[operator]
+                    and file_parts["run-type"] in version_file  # type: ignore[operator]
+                    and (not file_parts["index"] or file_parts["index"] in version_file)
+                ):
+                    file_found = True
+                    break
+
+        if not file_found:
+            raise OutputValidationError(  # noqa: TRY003
+                f"Transmogrifier output was not found for input file '{input_file}'"
+            )
 
 
 def get_transformed_filename(filename_details: dict) -> str:
@@ -318,7 +333,7 @@ def get_transformed_filename(filename_details: dict) -> str:
         index=f"_{sequence}" if (sequence := filename_details["index"]) else "",
     )
     output_filename = (
-        "{source}-{run_date}-{run_type}-{stage}-records-to-index{index}.{file_type}"
+        "{source}-{run_date}-{run_type}-{stage}-records-to-{action}{index}.json"
     )
     return output_filename.format(
         source=filename_details["source"],
@@ -326,5 +341,5 @@ def get_transformed_filename(filename_details: dict) -> str:
         run_type=filename_details["run-type"],
         stage=filename_details["stage"],
         index=filename_details["index"],
-        file_type=filename_details["file_type"],
+        action=filename_details["action"],
     )

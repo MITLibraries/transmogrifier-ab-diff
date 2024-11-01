@@ -1,4 +1,5 @@
 # ruff: noqa: PLR2004
+import json
 import os
 import re
 from pathlib import Path
@@ -9,10 +10,11 @@ import pyarrow.parquet as pq
 import pytest
 
 from abdiff.core.collate_ab_transforms import (
-    JOINED_DATASET_SCHEMA,
+    COLLATED_DATASET_SCHEMA,
     READ_BATCH_SIZE,
     TRANSFORMED_DATASET_SCHEMA,
     collate_ab_transforms,
+    get_deduped_batches_iter,
     get_joined_batches_iter,
     get_transform_version,
     get_transformed_batches_iter,
@@ -73,13 +75,16 @@ def test_get_transformed_records_iter_success(example_transformed_directory):
     )
     timdex_record_dict = next(records_iter)
 
-    assert list(timdex_record_dict.keys()) == [
+    assert set(timdex_record_dict.keys()) == {
         "timdex_record_id",
         "source",
+        "run_date",
+        "run_type",
+        "action",
         "record",
         "version",
         "transformed_file_name",
-    ]
+    }
     assert isinstance(timdex_record_dict["record"], bytes)
     assert timdex_record_dict["version"] == "a"
     assert (
@@ -99,7 +104,7 @@ def test_get_transformed_batches_iter_success(
 
     assert isinstance(transformed_batch, pa.RecordBatch)
     assert transformed_batch.num_rows <= READ_BATCH_SIZE
-    assert transformed_batch.schema == TRANSFORMED_DATASET_SCHEMA
+    assert set(transformed_batch.schema.names) == set(TRANSFORMED_DATASET_SCHEMA.names)
 
 
 def test_get_joined_batches_iter_success(transformed_parquet_dataset):
@@ -120,7 +125,20 @@ def test_get_joined_batches_iter_success(transformed_parquet_dataset):
     joined_batch = joined_batches[0]
     assert isinstance(joined_batch, pa.RecordBatch)
     assert joined_batch.num_rows <= max_rows_per_file
-    assert joined_batch.schema == JOINED_DATASET_SCHEMA
+    assert joined_batch.schema.names == COLLATED_DATASET_SCHEMA.names
+
+
+def test_get_deduped_batches_iter_success(collated_with_dupe_dataset_directory):
+    deduped_batches_iter = get_deduped_batches_iter(collated_with_dupe_dataset_directory)
+    deduped_df = next(deduped_batches_iter).to_pandas()
+
+    # assert record 'def456' was dropped because most recent is action=delete
+    assert len(deduped_df) == 2
+    assert set(deduped_df.timdex_record_id) == {"abc123", "ghi789"}
+
+    # assert record 'ghi789' has most recent 2024-10-02 version
+    deduped_record = deduped_df.set_index("timdex_record_id").loc["ghi789"]
+    assert json.loads(deduped_record.record_a)["material"] == "stucco"
 
 
 def test_validate_output_success(collated_dataset_directory):
@@ -128,7 +146,7 @@ def test_validate_output_success(collated_dataset_directory):
 
 
 def test_validate_output_raises_error_if_dataset_is_empty(run_directory):
-    empty_table = pa.Table.from_batches(batches=[], schema=JOINED_DATASET_SCHEMA)
+    empty_table = pa.Table.from_batches(batches=[], schema=COLLATED_DATASET_SCHEMA)
     empty_dataset_path = Path(run_directory) / "empty_dataset"
 
     os.makedirs(empty_dataset_path)
@@ -151,7 +169,7 @@ def test_validate_output_raises_error_if_missing_record_column(run_directory):
                 "record_b": None,
             }
         ],
-        schema=JOINED_DATASET_SCHEMA,
+        schema=COLLATED_DATASET_SCHEMA,
     )
     missing_record_cols_dataset_path = Path(run_directory) / "missing_record_cols_dataset"
 
@@ -169,6 +187,16 @@ def test_validate_output_raises_error_if_missing_record_column(run_directory):
         ),
     ):
         validate_output(dataset_path=missing_record_cols_dataset_path)
+
+
+def test_validate_output_raises_error_if_duplicate_records(
+    collated_with_dupe_dataset_directory,
+):
+    with pytest.raises(
+        OutputValidationError,
+        match="The collated dataset contains duplicate 'timdex_record_id' records.",
+    ):
+        validate_output(dataset_path=collated_with_dupe_dataset_directory)
 
 
 def test_get_transform_version_success(transformed_directories, output_filename):

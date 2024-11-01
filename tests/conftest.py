@@ -334,6 +334,9 @@ def collated_dataset_directory(run_directory):
             {
                 "timdex_record_id": "abc123",
                 "source": "alma",
+                "run_date": "2024-10-01",
+                "run_type": "full",
+                "action": "index",
                 "record_a": json.dumps(
                     {"material": "concrete", "color": "green", "number": 42}
                 ).encode(),
@@ -344,6 +347,9 @@ def collated_dataset_directory(run_directory):
             {
                 "timdex_record_id": "def456",
                 "source": "dspace",
+                "run_date": "2024-10-01",
+                "run_type": "full",
+                "action": "index",
                 "record_a": json.dumps(
                     {"material": "concrete", "color": "blue", "number": 101}
                 ).encode(),
@@ -354,6 +360,9 @@ def collated_dataset_directory(run_directory):
             {
                 "timdex_record_id": "ghi789",
                 "source": "libguides",
+                "run_date": "2024-10-01",
+                "run_type": "full",
+                "action": "index",
                 "record_a": json.dumps(
                     {
                         "material": "concrete",
@@ -371,7 +380,101 @@ def collated_dataset_directory(run_directory):
     write_to_dataset(
         pa.Table.from_pandas(df),
         base_dir=dataset_directory,
-        partition_columns=["source"],
+    )
+    return dataset_directory
+
+
+@pytest.fixture
+def collated_with_dupe_dataset_directory(run_directory):
+    """Simulate the outputs of core function collate_ab_transforms."""
+    dataset_directory = str(Path(run_directory) / "collated")
+    df = pd.DataFrame(
+        [
+            {
+                "timdex_record_id": "abc123",
+                "source": "alma",
+                "run_date": "2024-10-01",
+                "run_type": "full",
+                "action": "index",
+                "record_a": json.dumps(
+                    {"material": "concrete", "color": "green", "number": 42}
+                ).encode(),
+                "record_b": json.dumps(
+                    {"material": "concrete", "color": "red", "number": 42}
+                ).encode(),
+            },
+            {
+                "timdex_record_id": "def456",
+                "source": "dspace",
+                "run_date": "2024-10-01",
+                "run_type": "full",
+                "action": "index",
+                "record_a": json.dumps(
+                    {"material": "concrete", "color": "blue", "number": 101}
+                ).encode(),
+                "record_b": json.dumps(
+                    {"material": "concrete", "color": "blue", "number": 101}
+                ).encode(),
+            },
+            {
+                "timdex_record_id": "def456",
+                "source": "dspace",
+                "run_date": "2024-10-02",
+                "run_type": "full",
+                "action": "delete",
+                "record_a": json.dumps(
+                    {"material": "concrete", "color": "blue", "number": 101}
+                ).encode(),
+                "record_b": json.dumps(
+                    {"material": "concrete", "color": "blue", "number": 101}
+                ).encode(),
+            },
+            {
+                "timdex_record_id": "ghi789",
+                "source": "libguides",
+                "run_date": "2024-10-01",
+                "run_type": "full",
+                "action": "index",
+                "record_a": json.dumps(
+                    {
+                        "material": "concrete",
+                        "color": "purple",
+                        "number": 13,
+                        "fruit": "apple",
+                    }
+                ).encode(),
+                "record_b": json.dumps(
+                    {"material": "concrete", "color": "brown", "number": 99}
+                ).encode(),
+            },
+            {
+                "timdex_record_id": "ghi789",
+                "source": "libguides",
+                "run_date": "2024-10-02",
+                "run_type": "daily",
+                "action": "index",
+                "record_a": json.dumps(
+                    {
+                        "material": "stucco",
+                        "color": "green",
+                        "number": 42,
+                        "fruit": "banana",
+                    }
+                ).encode(),
+                "record_b": json.dumps(
+                    {
+                        "material": "stucco",
+                        "color": "green",
+                        "number": 42,
+                        "fruit": "banana",
+                    }
+                ).encode(),
+            },
+        ]
+    )
+    write_to_dataset(
+        pa.Table.from_pandas(df),
+        base_dir=dataset_directory,
     )
     return dataset_directory
 
