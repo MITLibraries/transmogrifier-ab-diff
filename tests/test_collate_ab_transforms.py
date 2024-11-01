@@ -128,6 +128,19 @@ def test_get_joined_batches_iter_success(transformed_parquet_dataset):
     assert joined_batch.schema.names == COLLATED_DATASET_SCHEMA.names
 
 
+def test_get_deduped_batches_iter_success(collated_with_dupe_dataset_directory):
+    deduped_batches_iter = get_deduped_batches_iter(collated_with_dupe_dataset_directory)
+    deduped_df = next(deduped_batches_iter).to_pandas()
+
+    # assert record 'def456' was dropped because most recent is action=delete
+    assert len(deduped_df) == 2
+    assert set(deduped_df.timdex_record_id) == {"abc123", "ghi789"}
+
+    # assert record 'ghi789' has most recent 2024-10-02 version
+    deduped_record = deduped_df.set_index("timdex_record_id").loc["ghi789"]
+    assert json.loads(deduped_record.record_a)["material"] == "stucco"
+
+
 def test_validate_output_success(collated_dataset_directory):
     validate_output(dataset_path=collated_dataset_directory)
 
@@ -198,16 +211,3 @@ def test_get_transform_version_success(transformed_directories, output_filename)
 def test_get_transform_version_raise_error():
     with pytest.raises(ValueError, match="Transformed filepath is invalid."):
         get_transform_version("invalid")
-
-
-def test_get_deduped_batches_iter_success(collated_with_dupe_dataset_directory):
-    deduped_batches_iter = get_deduped_batches_iter(collated_with_dupe_dataset_directory)
-    deduped_df = next(deduped_batches_iter).to_pandas()
-
-    # assert record 'def456' was dropped because most recent is action=delete
-    assert len(deduped_df) == 2
-    assert set(deduped_df.timdex_record_id) == {"abc123", "ghi789"}
-
-    # assert record 'ghi789' has most recent 2024-10-02 version
-    deduped_record = deduped_df.set_index("timdex_record_id").loc["ghi789"]
-    assert json.loads(deduped_record.record_a)["material"] == "stucco"

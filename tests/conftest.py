@@ -380,7 +380,6 @@ def collated_dataset_directory(run_directory):
     write_to_dataset(
         pa.Table.from_pandas(df),
         base_dir=dataset_directory,
-        partition_columns=["source"],
     )
     return dataset_directory
 
@@ -476,7 +475,6 @@ def collated_with_dupe_dataset_directory(run_directory):
     write_to_dataset(
         pa.Table.from_pandas(df),
         base_dir=dataset_directory,
-        partition_columns=["source"],
     )
     return dataset_directory
 
