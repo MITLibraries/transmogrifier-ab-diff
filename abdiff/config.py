@@ -15,6 +15,7 @@ class Config:
         "WEBAPP_PORT",
         "TRANSMOGRIFIER_MAX_WORKERS",
         "TRANSMOGRIFIER_TIMEOUT",
+        "TIMDEX_BUCKET",
     )
 
     def __getattr__(self, name: str) -> Any:  # noqa: ANN401
@@ -44,6 +45,18 @@ class Config:
         """Timeout for a single Transmogrifier container."""
         timeout = self.TRANSMOGRIFIER_TIMEOUT or 60 * 60 * 5  # 5 hours default
         return int(timeout)
+
+    @property
+    def active_timdex_sources(self) -> list[str]:
+        return [
+            "alma",
+            "aspace",
+            "dspace",
+            "gismit",
+            "gisogm",
+            "libguides",
+            "researchdatabases",
+        ]
 
 
 def configure_logger(logger: logging.Logger, *, verbose: bool) -> str:
