@@ -19,7 +19,7 @@ from abdiff.core import (
 )
 from abdiff.core import init_job as core_init_job
 from abdiff.core.utils import read_job_json
-from abdiff.helpers.timdex_sources import get_ordered_extracted_files_all_sources
+from abdiff.extras.timdex_sources import get_ordered_extracted_files_all_sources
 from abdiff.webapp.app import app
 
 logger = logging.getLogger(__name__)

@@ -13,26 +13,16 @@ logger = logging.getLogger(__name__)
 CONFIG = Config()
 
 
-def get_extracted_files_for_source(
-    source: str,
-    bucket: str = CONFIG.TIMDEX_BUCKET,
-) -> list[str]:
-    """List S3 URIs for extract files in TIMDEX S3 bucket for a given source."""
-    s3_client = boto3.client("s3")
-    files = []
-
-    paginator = s3_client.get_paginator("list_objects_v2")
-    page_iterator = paginator.paginate(Bucket=bucket, Prefix=source)
-
-    for page in page_iterator:
-        if "Contents" in page:
-            for obj in page["Contents"]:
-                if not obj["Key"].endswith("/"):  # skip folders
-                    s3_uri = f"s3://{bucket}/{obj['Key']}"
-                    files.append(s3_uri)
-
-    # filter where "extracted" in filename
-    return [file for file in files if "extracted" in file]
+def get_ordered_extracted_files_all_sources(
+    sources: list[str] | None = None,
+) -> dict[str, list[str]]:
+    """Get ordered extract files for all TIMDEX sources."""
+    if not sources:
+        sources = CONFIG.active_timdex_sources
+    return {
+        source: get_ordered_extracted_files_since_last_full_run(source=source)
+        for source in sources
+    }
 
 
 def get_ordered_extracted_files_since_last_full_run(source: str) -> list[str]:
@@ -81,13 +71,23 @@ def _extract_date(filename: str) -> datetime.datetime:
     return datetime.datetime.strptime(date_string, "%Y-%m-%d").astimezone(datetime.UTC)
 
 
-def get_ordered_extracted_files_all_sources(
-    sources: list[str] | None = None,
-) -> dict[str, list[str]]:
-    """Get ordered extract files for all TIMDEX sources."""
-    if not sources:
-        sources = CONFIG.active_timdex_sources
-    return {
-        source: get_ordered_extracted_files_since_last_full_run(source=source)
-        for source in sources
-    }
+def get_extracted_files_for_source(
+    source: str,
+    bucket: str = CONFIG.TIMDEX_BUCKET,
+) -> list[str]:
+    """List S3 URIs for extract files in TIMDEX S3 bucket for a given source."""
+    s3_client = boto3.client("s3")
+    files = []
+
+    paginator = s3_client.get_paginator("list_objects_v2")
+    page_iterator = paginator.paginate(Bucket=bucket, Prefix=source)
+
+    for page in page_iterator:
+        if "Contents" in page:
+            for obj in page["Contents"]:
+                if not obj["Key"].endswith("/"):  # skip folders
+                    s3_uri = f"s3://{bucket}/{obj['Key']}"
+                    files.append(s3_uri)
+
+    # filter where "extracted" in filename
+    return [file for file in files if "extracted" in file]
