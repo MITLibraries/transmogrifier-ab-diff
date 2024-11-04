@@ -1,3 +1,4 @@
+import concurrent.futures
 import json
 import logging
 import time
@@ -12,9 +13,9 @@ from abdiff.core.utils import update_or_create_run_json, write_to_dataset
 
 logger = logging.getLogger(__name__)
 
-READ_BATCH_SIZE = 1_000
-WRITE_MAX_ROW_GROUP_SIZE = 1_000
+READ_BATCH_SIZE = 10_000
 WRITE_MAX_ROWS_PER_FILE = 100_000
+MAX_PARALLEL_WORKERS = 6
 
 DIFFS_DATASET_OUTPUT_SCHEMA = pa.schema(
     (
@@ -52,29 +53,56 @@ def calc_ab_diffs(run_directory: str, collated_dataset_path: str) -> str:
     return str(diffs_dataset)
 
 
+def process_batch(batch: pa.RecordBatch) -> pa.RecordBatch:
+    """Parallel worker for calculating record diffs for a batch.
+
+    The pyarrow RecordBatch is converted into a pandas dataframe, a diff is calculated via
+    DeepDiff for each record in the batch, and this is converted back to a pyarrow
+    RecordBatch for returning.
+    """
+    df = batch.to_pandas()  # noqa: PD901
+    diff_results = df.apply(
+        lambda row: calc_record_diff(row["record_a"], row["record_b"]), axis=1
+    )
+    df["ab_diff"] = diff_results.apply(lambda x: x[0])
+    df["modified_timdex_fields"] = diff_results.apply(
+        lambda x: list(x[1]) if x[1] else []
+    )
+    df["has_diff"] = diff_results.apply(lambda x: x[2])
+    return pa.RecordBatch.from_pandas(df)  # type: ignore[attr-defined]
+
+
 def get_diffed_batches_iter(
     collated_dataset: ds.Dataset,
     batch_size: int = READ_BATCH_SIZE,
+    max_parallel_processes: int = MAX_PARALLEL_WORKERS,
 ) -> Generator[pa.RecordBatch, None, None]:
-    """Yield pyarrow record batches with diff calculated for records in batch."""
+    """Yield pyarrow record batches with diff calculated for each record.
+
+    This work is performed in parallel, leveraging CPU cores to calculate the diffs and
+    yield batches for writing to the "diffs" dataset.
+    """
     batches_iter = collated_dataset.to_batches(batch_size=batch_size)
-    for i, batch in enumerate(batches_iter):
-        logger.info(f"Calculating AB diff for batch: {i}")
 
-        # convert batch to pandas dataframe and calc values for new columns
-        df = batch.to_pandas()  # noqa: PD901
+    with concurrent.futures.ProcessPoolExecutor(
+        max_workers=max_parallel_processes + 1
+    ) as executor:
+        pending_futures = []
+        for batch_count, batch in enumerate(batches_iter):
+            logger.info(f"Submitting batch {batch_count} for processing")
+            future = executor.submit(process_batch, batch)
+            pending_futures.append((batch_count, future))
 
-        # calculate all diffs and unpack into separate columns
-        diff_results = df.apply(
-            lambda row: calc_record_diff(row["record_a"], row["record_b"]), axis=1
-        )
-        df["ab_diff"] = diff_results.apply(lambda x: x[0])
-        df["modified_timdex_fields"] = diff_results.apply(
-            lambda x: list(x[1]) if x[1] else []
-        )
-        df["has_diff"] = diff_results.apply(lambda x: x[2])
+            if len(pending_futures) >= max_parallel_processes:
+                idx, completed_future = pending_futures.pop(0)
+                result = completed_future.result()
+                logger.info(f"Yielding diffed batch: {idx}")
+                yield result
 
-        yield pa.RecordBatch.from_pandas(df)  # type: ignore[attr-defined]
+        for idx, future in pending_futures:
+            result = future.result()
+            logger.info(f"Yielding diffed batch: {idx}")
+            yield result
 
 
 def calc_record_diff(

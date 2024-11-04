@@ -391,6 +391,7 @@ def collated_with_dupe_dataset_directory(run_directory):
     df = pd.DataFrame(
         [
             {
+                "abdiff_record_id": "ece5ee65-20af-4410-89d9-1afe58531be8",
                 "timdex_record_id": "abc123",
                 "source": "alma",
                 "run_date": "2024-10-01",
@@ -404,6 +405,7 @@ def collated_with_dupe_dataset_directory(run_directory):
                 ).encode(),
             },
             {
+                "abdiff_record_id": "f1b4670c-cbfe-4246-8cb9-be9eabd78756",
                 "timdex_record_id": "def456",
                 "source": "dspace",
                 "run_date": "2024-10-01",
@@ -417,6 +419,7 @@ def collated_with_dupe_dataset_directory(run_directory):
                 ).encode(),
             },
             {
+                "abdiff_record_id": "49e9aa7f-11f2-41d3-aab4-4c76efab51aa",
                 "timdex_record_id": "def456",
                 "source": "dspace",
                 "run_date": "2024-10-02",
@@ -430,6 +433,7 @@ def collated_with_dupe_dataset_directory(run_directory):
                 ).encode(),
             },
             {
+                "abdiff_record_id": "7fafe666-a435-4939-b50a-ee059b36fb9f",
                 "timdex_record_id": "ghi789",
                 "source": "libguides",
                 "run_date": "2024-10-01",
@@ -448,6 +452,7 @@ def collated_with_dupe_dataset_directory(run_directory):
                 ).encode(),
             },
             {
+                "abdiff_record_id": "47d038ec-f231-4634-b20e-97e26c7829ea",
                 "timdex_record_id": "ghi789",
                 "source": "libguides",
                 "run_date": "2024-10-02",
