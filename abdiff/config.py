@@ -21,6 +21,7 @@ class Config:
         "TRANSMOGRIFIER_MAX_WORKERS",
         "TRANSMOGRIFIER_TIMEOUT",
         "TIMDEX_BUCKET",
+        "PRESERVE_ARTIFACTS",
     )
 
     def __getattr__(self, name: str) -> Any:  # noqa: ANN401
@@ -80,6 +81,12 @@ class Config:
             "libguides",
             "researchdatabases",
         ]
+
+    @property
+    def preserve_artifacts(self) -> bool:
+        return bool(
+            self.PRESERVE_ARTIFACTS and self.PRESERVE_ARTIFACTS.strip().lower() == "true"
+        )
 
 
 def configure_logger(logger: logging.Logger, *, verbose: bool) -> str:
