@@ -146,7 +146,7 @@ def get_record_field_diff_summary(run_directory: str, timdex_record_id: str) -> 
         )
     record_row = results_df.iloc[0].to_dict()
 
-    skip_fields = ["timdex_record_id", "source"]
+    skip_fields = ["timdex_record_id", "source", "has_diff"]
     timdex_fields = {
         field: value for field, value in record_row.items() if field not in skip_fields
     }
