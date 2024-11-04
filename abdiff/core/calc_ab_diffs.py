@@ -1,3 +1,4 @@
+import json
 import logging
 import time
 from collections.abc import Generator
@@ -5,7 +6,7 @@ from pathlib import Path
 
 import pyarrow as pa
 import pyarrow.dataset as ds
-from jsondiff import diff
+from deepdiff import DeepDiff
 
 from abdiff.core.utils import update_or_create_run_json, write_to_dataset
 
@@ -22,6 +23,7 @@ DIFFS_DATASET_OUTPUT_SCHEMA = pa.schema(
         pa.field("record_a", pa.binary()),
         pa.field("record_b", pa.binary()),
         pa.field("ab_diff", pa.string()),
+        pa.field("modified_timdex_fields", pa.list_(pa.string())),
         pa.field("has_diff", pa.string()),
     )
 )
@@ -61,23 +63,52 @@ def get_diffed_batches_iter(
 
         # convert batch to pandas dataframe and calc values for new columns
         df = batch.to_pandas()  # noqa: PD901
-        df["ab_diff"] = df.apply(
+
+        # calculate all diffs and unpack into separate columns
+        diff_results = df.apply(
             lambda row: calc_record_diff(row["record_a"], row["record_b"]), axis=1
         )
-        df["has_diff"] = df["ab_diff"].apply(lambda diff_value: diff_value != "{}")
+        df["ab_diff"] = diff_results.apply(lambda x: x[0])
+        df["modified_timdex_fields"] = diff_results.apply(
+            lambda x: list(x[1]) if x[1] else []
+        )
+        df["has_diff"] = diff_results.apply(lambda x: x[2])
 
         yield pa.RecordBatch.from_pandas(df)  # type: ignore[attr-defined]
 
 
-def calc_record_diff(record_a: bytes | None, record_b: bytes | None) -> str | None:
-    """Calculate symmetric diff from two JSON strings."""
-    if record_a is None or record_b is None:
-        return None
+def calc_record_diff(
+    record_a: str | bytes | dict | None,
+    record_b: str | bytes | dict | None,
+    *,
+    ignore_order: bool = True,
+    report_repetition: bool = True,
+) -> tuple[str | None, list[str] | None, bool]:
+    """Calculate diff from two JSON byte strings.
 
-    return diff(
-        record_a.decode(),
-        record_b.decode(),
-        syntax="symmetric",
-        load=True,
-        dump=True,
+    The DeepDiff library has the property 'affected_root_keys' on the produced diff object
+    that is very useful for our purposes.  At this time, we simply want to know if
+    anything about a particular root level TIMDEX field (e.g. 'dates' or 'title') has
+    changed which this method provides explicitly.  We also serialize the full diff to
+    JSON via the to_json() method for storage and possible further analysis.
+
+    This method returns a tuple:
+        - ab_diff: [str] - full diff as JSON
+        - modified_timdex_fields: list[str] - list of modified root keys (TIMDEX fields)
+        - has_diff: bool - True/False if any diff present
+    """
+    if record_a is None or record_b is None:
+        return None, None, False
+
+    diff = DeepDiff(
+        json.loads(record_a) if isinstance(record_a, str | bytes) else record_a,
+        json.loads(record_b) if isinstance(record_b, str | bytes) else record_b,
+        ignore_order=ignore_order,
+        report_repetition=report_repetition,
     )
+
+    ab_diff = diff.to_json()
+    modified_timdex_fields = diff.affected_root_keys
+    has_diff = bool(modified_timdex_fields)
+
+    return ab_diff, modified_timdex_fields, has_diff
