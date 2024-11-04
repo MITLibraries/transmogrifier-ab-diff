@@ -16,7 +16,7 @@ import pytest
 from click.testing import CliRunner
 from freezegun import freeze_time
 
-from abdiff.core import calc_ab_diffs, init_job, init_run
+from abdiff.core import calc_ab_diffs, create_final_records, init_job, init_run
 from abdiff.core.calc_ab_metrics import (
     _prepare_duckdb_context,
     create_record_diff_matrix_dataset,
@@ -526,3 +526,14 @@ def duckdb_context_with_diff_matrix(
         function_duckdb_connection, diff_matrix_dataset_filepath
     )
     return function_duckdb_connection, fields, sources
+
+
+@pytest.fixture
+def final_records_dataset_path(
+    run_directory, diffs_dataset_directory, diff_matrix_dataset_filepath
+):
+    return create_final_records(
+        run_directory=run_directory,
+        diffs_dataset_path=diffs_dataset_directory,
+        metrics_dataset_path=diff_matrix_dataset_filepath,
+    )

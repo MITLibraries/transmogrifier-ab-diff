@@ -89,7 +89,6 @@ def get_diffed_batches_iter(
     ) as executor:
         pending_futures = []
         for batch_count, batch in enumerate(batches_iter):
-            logger.info(f"Submitting batch {batch_count} for processing")
             future = executor.submit(process_batch, batch)
             pending_futures.append((batch_count, future))
 

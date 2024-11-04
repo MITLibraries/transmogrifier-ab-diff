@@ -1,6 +1,6 @@
 {
   "job_directory": "tests/fixtures/jobs/example-job-2",
   "job_message": "small job for testing purposes",
-  "image_tag_a": "transmogrifier-example-job-2-395e612:latest",
-  "image_tag_b": "transmogrifier-example-job-2-cf1024c:latest"
+  "image_tag_a": "transmogrifier-abdiff-395e612:latest",
+  "image_tag_b": "transmogrifier-abdiff-cf1024c:latest"
 }

@@ -1,5 +1,6 @@
 import json
 import logging
+import shutil
 from datetime import timedelta
 from itertools import chain
 from time import perf_counter
@@ -14,6 +15,7 @@ from abdiff.core import (
     calc_ab_diffs,
     calc_ab_metrics,
     collate_ab_transforms,
+    create_final_records,
     download_input_files,
     init_run,
     run_ab_transforms,
@@ -24,6 +26,8 @@ from abdiff.extras.timdex_sources import get_ordered_extracted_files_all_sources
 from abdiff.webapp.app import app
 
 logger = logging.getLogger(__name__)
+
+CONFIG = Config()
 
 
 @click.group(context_settings={"help_option_names": ["-h", "--help"]})
@@ -181,18 +185,30 @@ def run_diff(
         input_files=input_files_list,
         use_local_s3=download_files,
     )
+
     collated_dataset_path = collate_ab_transforms(
         run_directory=run_directory,
         ab_transformed_file_lists=ab_transformed_file_lists,
     )
+
     diffs_dataset_path = calc_ab_diffs(
         run_directory=run_directory,
         collated_dataset_path=collated_dataset_path,
     )
-    calc_ab_metrics(
+
+    if not CONFIG.preserve_artifacts:
+        shutil.rmtree(collated_dataset_path)
+
+    metrics_dataset_path = calc_ab_metrics(
         run_directory=run_directory,
         diffs_dataset_path=diffs_dataset_path,
     )
+
+    create_final_records(run_directory, diffs_dataset_path, metrics_dataset_path)
+
+    if not CONFIG.preserve_artifacts:
+        shutil.rmtree(diffs_dataset_path)
+        shutil.rmtree(metrics_dataset_path)
 
 
 @main.command()
