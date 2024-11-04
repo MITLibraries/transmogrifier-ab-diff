@@ -6,6 +6,7 @@ import json
 import logging
 import os
 import re
+import shutil
 import tempfile
 from collections.abc import Generator
 from pathlib import Path
@@ -15,10 +16,13 @@ import ijson
 import pandas as pd
 import pyarrow as pa
 
+from abdiff.config import Config
 from abdiff.core.exceptions import OutputValidationError
 from abdiff.core.utils import parse_timdex_filename, write_to_dataset
 
 logger = logging.getLogger(__name__)
+
+CONFIG = Config()
 
 READ_BATCH_SIZE = 1_000
 TRANSFORMED_DATASET_SCHEMA = pa.schema(
@@ -54,7 +58,8 @@ def collate_ab_transforms(
 
     This process can be summarized into two (3) important steps:
         1. Write all transformed JSON records into a temporary Parquet dataset
-           partitioned by the transformed file name.
+           partitioned by the transformed file name.  As this process works, transformed
+           files that are no longer needed are removed to free storage space.
         2. For every transformed file, use DuckDB to join A/B Parquet tables
            using the TIMDEX record ID and write joined records to a Parquet dataset.
         3. Dedupe joined records to ensure that only the most recent, not "deleted"
@@ -74,6 +79,11 @@ def collate_ab_transforms(
     logger.info(
         f"Wrote {len(transformed_written_files)} parquet file(s) to transformed dataset"
     )
+
+    # remove transformed directory entirely
+    if not CONFIG.preserve_artifacts:
+        shutil.rmtree(Path(run_directory) / "transformed")
+        logger.info("/transformed directory removed completely.")
 
     # build temporary collated dataset
     joined_written_files = write_to_dataset(
@@ -172,6 +182,8 @@ def get_transformed_batches_iter(
     from get_transformed_records_iter(). The returned generator can be passed to
     abdiff.core.utils.write_to_dataset() to perform batch writes to
     a Parquet dataset.
+
+    After yielding records, for both A and B versions, the transformed file is removed.
     """
     count = 0
     total_transformed_files = len(ab_transformed_file_lists[0]) + len(
@@ -185,11 +197,17 @@ def get_transformed_batches_iter(
                 f"Yielding records from file {count} / {total_transformed_files}"
                 f": {transformed_file}"
             )
+            transformed_filepath = str(Path(run_directory) / transformed_file)
             record_iter = get_transformed_records_iter(
-                transformed_file=str(Path(run_directory) / transformed_file)
+                transformed_file=transformed_filepath
             )
             for record_batch in itertools.batched(record_iter, READ_BATCH_SIZE):
                 yield pa.RecordBatch.from_pylist(list(record_batch))
+
+            # remove transformed file no longer needed
+            if not CONFIG.preserve_artifacts:
+                logger.info(f"removing original transformed file: {transformed_filepath}")
+                os.remove(transformed_filepath)
 
 
 def get_joined_batches_iter(

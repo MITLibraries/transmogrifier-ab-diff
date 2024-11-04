@@ -95,6 +95,7 @@ WEBAPP_PORT=# port for flask webapp
 TRANSMOGRIFIER_MAX_WORKERS=# max number of Transmogrifier containers to run in parallel; default is 6
 TRANSMOGRIFIER_TIMEOUT=# timeout for a single Transmogrifier container; default is 5 hours
 TIMDEX_BUCKET=# when using CLI command 'timdex-sources-csv', this is required to know what TIMDEX bucket to use
+PRESERVE_ARTIFACTS=# if 'true', intermediate artifacts like transformed files, collated records, etc., will not be automatically removed
 ```
 
 ## CLI commands
