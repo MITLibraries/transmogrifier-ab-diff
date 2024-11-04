@@ -104,32 +104,6 @@ def create_record_diff_matrix_dataset(
     return metrics_dataset
 
 
-def generate_field_diff_bools_for_record(diff_data: dict) -> dict:
-    """Function to return dictionary of fields that have a diff.
-
-    Determining if a field had a diff is as straight-forward as looking to see if it shows
-    up in the parsed diff JSON.  The fields may be at the root of the diff, or they could
-    be nested under "$insert" or "$delete" nodes in the diff.
-
-    If a field from the original A/B records are not in the diff at all, then they did not
-    have changes, and therefore will not receive a 1 here to indicate a diff.
-    """
-    fields_with_diffs = {}
-
-    for key in diff_data:
-
-        # identify modified fields nested in $insert or $delete blocks
-        if key in ("$insert", "$delete"):
-            for subfield in diff_data[key]:
-                fields_with_diffs[subfield] = 1
-
-        # identified modified fields at root of diff
-        else:
-            fields_with_diffs[key] = 1
-
-    return fields_with_diffs
-
-
 def calculate_metrics_data(field_matrix_parquet: str) -> dict:
     """Create a dictionary of metrics via DuckDB queries."""
     summary: dict = {}

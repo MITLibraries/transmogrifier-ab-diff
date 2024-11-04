@@ -12,30 +12,8 @@ from abdiff.core.calc_ab_metrics import (
     calc_ab_metrics,
     calculate_metrics_data,
     create_record_diff_matrix_dataset,
-    generate_field_diff_bools_for_record,
 )
 from abdiff.core.utils import load_dataset, read_run_json
-
-
-def test_record_field_diffs_no_diffs():
-    diff_data = {}
-    assert generate_field_diff_bools_for_record(diff_data) == {}
-
-
-def test_record_field_diffs_one_diff():
-    diff_data = {"color": "green"}
-    assert generate_field_diff_bools_for_record(diff_data) == {"color": 1}
-
-
-def test_record_field_diffs_diff_from_inserts_and_deletes_counted_only_once():
-    diff_data = {
-        "$insert": {"fruits": "strawberry"},
-        "$delete": {"vegetables": "onion"},
-    }
-    assert generate_field_diff_bools_for_record(diff_data) == {
-        "fruits": 1,
-        "vegetables": 1,
-    }
 
 
 def test_sparse_matrix_dataset_created_success(run_directory, diffs_dataset_directory):
