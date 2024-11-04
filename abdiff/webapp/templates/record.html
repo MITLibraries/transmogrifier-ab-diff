@@ -27,7 +27,10 @@
 
 <div>
     <script>
-        loadJSONData("recordSummary", {{summary|safe}});
+        let recordSummaryEditor = loadJSONData("recordSummary", {{summary|safe}});
+        recordSummaryEditor.expand({path: ["fields_with_diffs"], isExpand: true, recursive: true});
+        recordSummaryEditor.expand({path: ["fields_only_in_a"], isExpand: true, recursive: true});
+        recordSummaryEditor.expand({path: ["fields_only_in_b"], isExpand: true, recursive: true});
         loadJSONData("recordA", {{a_json|safe}});
         loadJSONData("recordB", {{a_json|safe}});
     </script>
