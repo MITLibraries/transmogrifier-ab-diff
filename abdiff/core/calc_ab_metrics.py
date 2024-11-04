@@ -20,9 +20,10 @@ NON_TIMDEX_FIELD_COLUMNS = ["timdex_record_id", "source", "has_diff"]
 def calc_ab_metrics(
     run_directory: str,
     diffs_dataset_path: str,
-) -> dict:
+) -> str:
 
-    os.makedirs(Path(run_directory) / "metrics", exist_ok=True)
+    metrics_dataset = Path(run_directory) / "metrics"
+    os.makedirs(metrics_dataset, exist_ok=True)
 
     # build field diffs dataframe
     field_matrix_dataset_filepath = create_record_diff_matrix_dataset(
@@ -37,7 +38,7 @@ def calc_ab_metrics(
         run_directory=run_directory, new_data={"metrics": metrics_data}
     )
 
-    return metrics_data
+    return str(metrics_dataset)
 
 
 def create_record_diff_matrix_dataset(
