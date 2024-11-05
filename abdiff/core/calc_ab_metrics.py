@@ -1,6 +1,5 @@
 # ruff: noqa: S608
 
-import json
 import logging
 import os
 import time
@@ -48,12 +47,11 @@ def create_record_diff_matrix_dataset(
 ) -> str:
     """Create a boolean sparse matrix of modified fields for all records.
 
-    This writes a single parquet file with rows for each record, and columns for each
-    TIMDEX field, and a value of integer 1 if that field has a diff and 0 if not.  This
-    provides a handy way to calculate aggregate metrics for a given field or source in
-    later steps.  The column "has_diff" is also carried over from the diffs dataset to
-    provide a single column to check if ANY of the field columns indicate a diff for a
-    record row.
+    This writes a single parquet file with rows for each record, columns for each TIMDEX
+    field, and a value of integer 1 if that field has a diff and 0 if not.  This provides
+    a handy way to calculate aggregate metrics for a given field or source in later steps.
+    The column "has_diff" is also carried over from the diffs dataset to provide a single
+    column to check if ANY of the field columns indicate a diff for a record row.
 
     This code momentarily creates a single dataframe in memory for all rows.  This is safe
     given the nature of the dataframe: there may be 10m rows, and potentially 20-30
@@ -66,32 +64,31 @@ def create_record_diff_matrix_dataset(
     for i, batch in enumerate(
         diffs_ds.to_batches(
             batch_size=batch_size,
-            columns=["timdex_record_id", "source", "ab_diff", "has_diff"],
+            columns=["timdex_record_id", "source", "modified_timdex_fields", "has_diff"],
         )
     ):
         start_time = time.time()
         batch_df = batch.to_pandas()
-
-        # parse diff JSON to dictionary for batch
-        batch_df["ab_diff"] = batch_df["ab_diff"].apply(
-            lambda diff_json: json.loads(diff_json)
-        )
 
         batch_metrics = []
         for _, row in batch_df.iterrows():
             record_metrics = {
                 "timdex_record_id": row["timdex_record_id"],
                 "source": row["source"],
-                "has_diff": 1 if row["has_diff"] == "true" else 0,
+                "has_diff": (1 if row["has_diff"] == "true" else 0),
             }
-            diff_data = row["ab_diff"]
-            record_metrics.update(generate_field_diff_bools_for_record(diff_data))
+
+            # for each modified field (root key in diff), set column and value = 1 (True)
+            if row["modified_timdex_fields"] is not None:
+                for field in row["modified_timdex_fields"]:
+                    record_metrics[field] = 1
+
             batch_metrics.append(record_metrics)
 
         # build dataframe for batch
         batch_metrics_df = pd.DataFrame(batch_metrics)
         batch_metrics_dfs.append(batch_metrics_df)
-        logger.info(f"batch: {i+1}, elapsed: {time.time()-start_time}")
+        logger.info(f"batch: {i + 1}, elapsed: {time.time() - start_time}")
 
     # concatenate all dataframes into single dataframe for writing and replace None with 0
     metrics_df = pd.concat(batch_metrics_dfs)
@@ -105,32 +102,6 @@ def create_record_diff_matrix_dataset(
         partition_columns=["source"],
     )
     return metrics_dataset
-
-
-def generate_field_diff_bools_for_record(diff_data: dict) -> dict:
-    """Function to return dictionary of fields that have a diff.
-
-    Determining if a field had a diff is as straight-forward as looking to see if it shows
-    up in the parsed diff JSON.  The fields may be at the root of the diff, or they could
-    be nested under "$insert" or "$delete" nodes in the diff.
-
-    If a field from the original A/B records are not in the diff at all, then they did not
-    have changes, and therefore will not receive a 1 here to indicate a diff.
-    """
-    fields_with_diffs = {}
-
-    for key in diff_data:
-
-        # identify modified fields nested in $insert or $delete blocks
-        if key in ("$insert", "$delete"):
-            for subfield in diff_data[key]:
-                fields_with_diffs[subfield] = 1
-
-        # identified modified fields at root of diff
-        else:
-            fields_with_diffs[key] = 1
-
-    return fields_with_diffs
 
 
 def calculate_metrics_data(field_matrix_parquet: str) -> dict:

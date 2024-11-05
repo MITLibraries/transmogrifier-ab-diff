@@ -14,8 +14,8 @@ pygit2 = "*"
 types-docker = "*"
 types-pygit2 = "*"
 flask = "*"
-jsondiff = "*"
 boto3 = "*"
+deepdiff = "*"
 
 [dev-packages]
 black = "*"
