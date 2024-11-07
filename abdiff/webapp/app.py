@@ -5,17 +5,17 @@ import os
 import signal
 from datetime import datetime
 from pathlib import Path
+from time import perf_counter
 
-from flask import Flask, g, render_template, request
+from flask import Flask, Response, g, jsonify, render_template, request
 
 from abdiff.core.utils import read_run_json
 from abdiff.webapp.utils import (
-    get_field_sample_records,
     get_record_a_b_versions,
     get_record_field_diff_summary,
     get_record_unified_diff_string,
     get_run_directory,
-    get_source_sample_records,
+    query_duckdb_for_records_datatable,
 )
 
 logger = logging.getLogger(__name__)
@@ -61,7 +61,7 @@ def create_app() -> Flask:
             with open(run_json_filepath) as f:
                 run_data = json.load(f)
             runs[run_data["run_timestamp"]] = run_data
-        dict(
+        runs = dict(
             sorted(
                 runs.items(),
                 key=lambda x: datetime.strptime(  # noqa: DTZ007
@@ -89,63 +89,49 @@ def create_app() -> Flask:
         except FileNotFoundError:
             transform_logs = "'logs.txt' not found for transform logs"
 
-        # parse run metrics
-        metrics = run_data.get(
-            "metrics", {"warning": "'metrics' section not found in run data"}
-        )
-
-        # generate links for field and source samples
-        field_samples = {
-            field: f"http://{request.host}/run/{run_timestamp}/sample/field/{field}"
-            for field in metrics["summary"]["fields_with_diffs"]
-        }
-        source_samples = {
-            source: f"http://{request.host}/run/{run_timestamp}/sample/source/{source}"
-            for source in metrics["summary"]["sources"]
-        }
-        sample_links = {
-            "field_samples": field_samples,
-            "source_samples": source_samples,
-        }
-
         return render_template(
             "run.html",
             run_data=run_data,
             run_json=json.dumps(run_data),
             transform_logs=transform_logs,
-            metrics_json=json.dumps(metrics),
-            sample_links=sample_links,
+            metrics_json=json.dumps(run_data["metrics"]),
+            sources=sorted(run_data["metrics"]["summary"]["sources"]),
+            modified_fields=sorted(run_data["metrics"]["summary"]["fields_with_diffs"]),
         )
 
-    @app.route(
-        "/run/<run_timestamp>/sample/<sample_type>/<sample_value>", methods=["GET"]
-    )
-    def run_sample(run_timestamp: str, sample_type: str, sample_value: str) -> str:
-        """Route to provide links to record views based on a subset of detected diffs."""
+    @app.route("/run/<run_timestamp>/records/data", methods=["POST"])
+    def records_data(run_timestamp: str) -> Response:
+        """Endpoint to provide data for Records table in Run view.
+
+        The Javascript library DataTables (https://datatables.net/) is used to create the
+        Records table in the Run view.  This table is configured to make HTTP POST
+        requests to an endpoint for filtered, paginated data that supplies the table. This
+        endpoint provides that data.
+
+        The POST request payload conforms to the request signature here:
+        https://datatables.net/manual/server-side.  This endpoint receives the parameters
+        from the table (e.g. page, ordering, filtering, etc.), parses the query parameters
+        from the request payload, and passes to a utility function which performs the
+        DuckDB query, returning a dataframe of results suitable for the table.
+        """
+        start_time = perf_counter()
         run_directory = get_run_directory(run_timestamp)
+        run_data = read_run_json(run_directory)
 
-        # get sample records
-        if sample_type == "field":
-            sample_df = get_field_sample_records(run_directory, sample_value)
-        elif sample_type == "source":
-            sample_df = get_source_sample_records(run_directory, sample_value)
-        else:
-            raise ValueError(  # noqa: TRY003
-                f"Sample type: '{sample_type}' not recognized"
-            )
-        sample_df["record_link"] = sample_df.timdex_record_id.apply(
-            lambda timdex_record_id: (
-                f"http://{request.host}/run/{run_timestamp}/record/{timdex_record_id}"
-            )
+        datatables_data = query_duckdb_for_records_datatable(
+            run_data["duckdb_filepath"],
+            draw=int(request.form.get("draw", "1")),
+            start=int(request.form.get("start", "0")),
+            length=int(request.form.get("length", "10")),
+            search_value=request.form.get("search[value]", ""),
+            order_column_index=int(request.form.get("order[0][column]", "0")),
+            order_direction=request.form.get("order[0][dir]", "asc"),
+            source_filter=request.form.getlist("sourceFilter[]"),
+            modified_fields_filter=request.form.getlist("modifiedFieldsFilter[]"),
         )
-        sample_df = sample_df.sort_values(by=["source", "timdex_record_id"])
 
-        return render_template(
-            "sample.html",
-            sample_type=sample_type,
-            sample_value=sample_value,
-            sample_df=sample_df,
-        )
+        logger.info(f"records data elapsed: {perf_counter()-start_time}")
+        return jsonify(datatables_data)
 
     @app.route("/run/<run_timestamp>/record/<timdex_record_id>", methods=["GET"])
     def record(run_timestamp: str, timdex_record_id: str) -> str:

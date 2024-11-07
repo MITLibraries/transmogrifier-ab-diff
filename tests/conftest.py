@@ -20,7 +20,7 @@ from freezegun import freeze_time
 from abdiff.core import calc_ab_diffs, create_final_records, init_job, init_run
 from abdiff.core.calc_ab_metrics import (
     _prepare_duckdb_context,
-    create_record_diff_matrix_dataset,
+    calc_ab_metrics,
 )
 from abdiff.core.collate_ab_transforms import (
     TRANSFORMED_DATASET_SCHEMA,
@@ -498,13 +498,15 @@ def metrics_directory(run_directory):
 
 
 @pytest.fixture
-def diffs_dataset_directory(run_directory, metrics_directory, collated_dataset_directory):
+def diffs_dataset_directory(
+    run_directory, metrics_directory, collated_dataset_directory
+) -> str:
     return calc_ab_diffs(run_directory, collated_dataset_directory)
 
 
 @pytest.fixture
 def diff_matrix_dataset_filepath(run_directory, diffs_dataset_directory) -> str:
-    return create_record_diff_matrix_dataset(run_directory, diffs_dataset_directory)
+    return calc_ab_metrics(run_directory, diffs_dataset_directory)
 
 
 @pytest.fixture
@@ -603,3 +605,8 @@ def mocked_transformed_files_500_ab_list(run_directory, mocked_transformed_files
             for file in glob.glob(f"{mocked_transformed_files_500}/b/*.json")
         ],
     )
+
+
+@pytest.fixture
+def records_duckdb_filepath():
+    return "tests/fixtures/jobs/example-job-3/runs/2024-11-07_03-56-22/run.duckdb"

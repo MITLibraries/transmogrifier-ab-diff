@@ -8,6 +8,8 @@ from unittest.mock import patch
 
 import pytest
 
+from abdiff.webapp.utils import query_duckdb_for_records_datatable
+
 
 def test_webapp_without_job_directory_raise_error(monkeypatch, webapp_client):
     monkeypatch.delenv("JOB_DIRECTORY", raising=False)
@@ -90,3 +92,65 @@ def test_record_page_get_a_b_records_passed_as_valid_json_strings(
     assert isinstance(b, str)
     assert isinstance(json.loads(a), dict)
     assert isinstance(json.loads(b), dict)
+
+
+def test_datatables_duckdb_query_expected_structure(records_duckdb_filepath):
+    data = query_duckdb_for_records_datatable(records_duckdb_filepath)
+    assert set(data.keys()) == {"draw", "recordsTotal", "recordsFiltered", "data"}
+    assert isinstance(data["data"], list)
+
+
+@pytest.mark.parametrize(
+    ("source_filter", "expected_count"),
+    [
+        (None, 1278),
+        (["libguides"], 386),
+        (["researchdatabases"], 892),
+        (["libguides", "researchdatabases"], 1278),
+        (["bad_source_name"], 0),
+    ],
+)
+def test_datatables_duckdb_query_source_filtering(
+    records_duckdb_filepath, source_filter, expected_count
+):
+    """Tests filtering response data by TIMDEX source."""
+    data = query_duckdb_for_records_datatable(
+        records_duckdb_filepath, source_filter=source_filter
+    )
+    assert data["recordsFiltered"] == expected_count
+
+
+@pytest.mark.parametrize(
+    ("modified_fields_filter", "expected_count"),
+    [
+        (None, 1278),
+        (["publishers"], 386),
+        (["bad_field_name"], 0),
+    ],
+)
+def test_datatables_duckdb_query_modified_field_filtering(
+    records_duckdb_filepath, modified_fields_filter, expected_count
+):
+    """Tests filtering response data by TIMDEX source."""
+    data = query_duckdb_for_records_datatable(
+        records_duckdb_filepath, modified_fields_filter=modified_fields_filter
+    )
+    assert data["recordsFiltered"] == expected_count
+
+
+@pytest.mark.parametrize(
+    ("fulltext_search", "expected_count"),
+    [
+        (None, 1278),
+        ("Engineering", 164),
+        ("MIT", 433),
+    ],
+)
+def test_datatables_duckdb_query_record_fulltext_search(
+    records_duckdb_filepath, fulltext_search, expected_count
+):
+    """Tests filtering response data by TIMDEX source."""
+    data = query_duckdb_for_records_datatable(
+        records_duckdb_filepath, search_value=fulltext_search
+    )
+    assert data["recordsFiltered"] == expected_count

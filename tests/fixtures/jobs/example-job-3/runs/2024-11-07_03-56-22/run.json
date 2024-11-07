@@ -1,0 +1,84 @@
+{
+  "job_directory": "tests/fixtures/jobs/example-job-3",
+  "job_message": "Not provided.",
+  "image_tag_a": "transmogrifier-abdiff-008e20c:latest",
+  "image_tag_b": "transmogrifier-abdiff-3f77c7c:latest",
+  "run_directory": "tests/fixtures/jobs/example-job-3/runs/2024-11-07_03-56-22",
+  "run_message": "Not provided.",
+  "run_timestamp": "2024-11-07_03-56-22",
+  "input_files": [
+    "s3://timdex-extract-prod-300442551476/libguides/libguides-2023-08-09-full-extracted-records-to-index.xml",
+    "s3://timdex-extract-prod-300442551476/researchdatabases/researchdatabases-2023-08-09-full-extracted-records-to-index.xml"
+  ],
+  "transformed_files": [
+    [
+      "transformed/a/researchdatabases-2023-08-09-full-transformed-records-to-index.json",
+      "transformed/a/libguides-2023-08-09-full-transformed-records-to-index.json"
+    ],
+    [
+      "transformed/b/researchdatabases-2023-08-09-full-transformed-records-to-index.json",
+      "transformed/b/libguides-2023-08-09-full-transformed-records-to-index.json"
+    ]
+  ],
+  "diffs_dataset_path": "tests/fixtures/jobs/example-job-3/runs/2024-11-07_03-56-22/diffs",
+  "metrics": {
+    "summary": {
+      "total_records": 1278,
+      "total_records_with_diff": 1278,
+      "records_with_diff_percent": 100.0,
+      "sources": [
+        "researchdatabases",
+        "libguides"
+      ],
+      "fields_with_diffs": [
+        "publishers",
+        "dates",
+        "publication_information"
+      ]
+    },
+    "analysis": {
+      "by_source": {
+        "researchdatabases": {
+          "count": 892,
+          "field_counts": {
+            "publishers": 0,
+            "dates": 892,
+            "publication_information": 0
+          }
+        },
+        "libguides": {
+          "count": 386,
+          "field_counts": {
+            "publishers": 386,
+            "dates": 386,
+            "publication_information": 386
+          }
+        }
+      },
+      "by_field": {
+        "publishers": {
+          "count": 386,
+          "source_counts": {
+            "researchdatabases": 0,
+            "libguides": 386
+          }
+        },
+        "dates": {
+          "count": 1278,
+          "source_counts": {
+            "researchdatabases": 892,
+            "libguides": 386
+          }
+        },
+        "publication_information": {
+          "count": 386,
+          "source_counts": {
+            "researchdatabases": 0,
+            "libguides": 386
+          }
+        }
+      }
+    }
+  },
+  "duckdb_filepath": "tests/fixtures/jobs/example-job-3/runs/2024-11-07_03-56-22/run.duckdb"
+}

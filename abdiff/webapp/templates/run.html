@@ -19,44 +19,65 @@
         <h3>Details</h3>
         <div id="runDetails" style="width: 100%;"></div>
     </div>
+
     <div class="row">
         <h3 data-bs-toggle="collapse" data-bs-target="#collapseLogs" role="button" aria-expanded="false" aria-controls="collapseLogs">Transform Logs ⤵</h3>
         <div class="collapse" id="collapseLogs">
             <pre><code>{{transform_logs}}</code></pre>
         </div>
     </div>
+
     <div class="row">
         <h3>Diff Metrics</h3>
         <div id="runMetrics" style="width: 100%; margin-bottom:50px;"></div>
     </div>
-    <div class="row">
-        <h3>Record Samples</h3>
 
-        <h4>Fields with diffs</h4>
-        <ul style="margin-left:40px;">
-            {% if run_data.metrics.summary.total_records_with_diff > 0 %}
-                {% for field,link in sample_links.field_samples.items() %}
-                <li><code><a href="{{link}}">{{field}}</a></code> ({{run_data.metrics.analysis.by_field[field].count}})</li>
-                {% endfor %}
-            {% else %}
-                <li><i>No records had diffs for any fields.</i></li>
-            {% endif %}
-        </ul>
-        <h4>Sources with diffs</h4>
-        <ul style="margin-left:40px;">
-            {% if run_data.metrics.summary.total_records_with_diff > 0 %}
-                {% for source,link in sample_links.source_samples.items() %}
-                    <li><code><a href="{{link}}">{{source}}</a></code> ({{run_data.metrics.analysis.by_source[source].count}})</li>
-                {% endfor %}
-            {% else %}
-                <li><i>No records had diffs for any sources.</i></li>
-            {% endif %}
-        </ul>
-        <h4>All records</h4>
-        <ul style="margin-left:40px;">
-            <li><i>TODO: provide a link to interface that supports browsing of all records...</i></li>
-        </ul>
+    <div class="row mb-3">
+        <h3>Records</h3>
     </div>
+
+    <!-- Filter Controls -->
+    <div class="row mb-3">
+        <div class="col-md-5">
+            <label style="font-weight: bold" for="sourceFilter">Filter by Source:</label>
+            <select id="sourceFilter" multiple class="form-control">
+                {% for source in sources %}
+                <option value="{{ source }}">{{ source }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div class="col-md-5">
+            <label style="font-weight: bold" for="modifiedFieldsFilter">Filter by Modified Fields:</label>
+            <select id="modifiedFieldsFilter" multiple class="form-control">
+                {% for field in modified_fields %}
+                <option value="{{ field }}">{{ field }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <!-- Reset Button -->
+        <div class="col-md-2 d-flex align-items-end">
+            <button id="resetFilters" class="btn btn-secondary btn-block">Reset Filters</button>
+        </div>
+    </div>
+
+    <!-- Include DataTables CSS -->
+    <link rel="stylesheet" type="text/css" href="{{ url_for('static', filename='jquery.dataTables.css') }}"/>
+
+    <!-- DataTables Table -->
+    <div class="row mb-3">
+        <table id="recordsTable" class="display" style="width:100%">
+            <thead>
+                <tr>
+                    <th>TIMDEX Record ID</th>
+                    <th>Source</th>
+                    <th>Has Diff</th>
+                    <th>Fields with Diffs</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+        </table>
+    </div>
+
 </div>
 
 <div>
@@ -66,6 +87,58 @@
         let metricsEditor = loadJSONData("runMetrics", {{metrics_json|safe}});
         metricsEditor.expand({path: ["summary"], isExpand: true, recursive: false})
         metricsEditor.expand({path: ["analysis"], isExpand: true, recursive: false})
+    </script>
+    <script src="{{ url_for('static', filename='jquery-3.6.0.min.js') }}"></script>
+    <script src="{{ url_for('static', filename='jquery.dataTables.min.js') }}"></script>
+    <script>
+    $(document).ready(function() {
+        var table = $('#recordsTable').DataTable( {
+            "processing": true,
+            "serverSide": true,
+            "searchDelay":400, // default
+            "ajax": {
+                "url": "{{ url_for('records_data', run_timestamp=run_data.run_timestamp) }}",
+                "type": "POST",
+                "data": function(d) {
+                    // Add extra parameters for filtering
+                    d.sourceFilter = $('#sourceFilter').val();
+                    d.modifiedFieldsFilter = $('#modifiedFieldsFilter').val();
+                }
+            },
+            "columns": [
+                { "data": "timdex_record_id" },
+                { "data": "source" },
+                { "data": "has_diff" },
+                { "data": "modified_timdex_fields" },
+                {
+                    "data": "timdex_record_id",
+                    "render": function(data, type, row, meta) {
+                        if (type === 'display') {
+                            var url = "{{ url_for('record', run_timestamp=run_data.run_timestamp, timdex_record_id='') }}" + data;
+                            return '<a target="_blank" href="' + url + '">View Record</a>';
+                        }
+                        return data;
+                    },
+                    "orderable": false,
+                    "searchable": false
+                }
+            ]
+        } );
+
+        // Event listener for filter controls
+        $('#sourceFilter, #modifiedFieldsFilter').change(function(){
+            table.ajax.reload();
+        });
+
+        // Event listener for reset button
+        $('#resetFilters').click(function(){
+            $('#sourceFilter').val(null);
+            $('#modifiedFieldsFilter').val(null);
+            table.search('').draw();
+            table.ajax.reload();
+        });
+    } );
+
     </script>
 </div>
 {% endblock %}
