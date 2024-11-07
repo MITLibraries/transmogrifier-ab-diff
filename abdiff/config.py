@@ -11,6 +11,11 @@ class Config:
         "WORKSPACE",
     )
     OPTIONAL_ENV_VARS = (
+        "MINIO_S3_LOCAL_STORAGE",
+        "MINIO_S3_URL",
+        "MINIO_S3_CONTAINER_URL",
+        "MINIO_ROOT_USER",
+        "MINIO_ROOT_PASSWORD",
         "WEBAPP_HOST",
         "WEBAPP_PORT",
         "TRANSMOGRIFIER_MAX_WORKERS",
@@ -24,6 +29,24 @@ class Config:
             return os.getenv(name)
         message = f"'{name}' not a valid configuration variable"
         raise AttributeError(message)
+
+    @property
+    def minio_s3_url(self) -> str:
+        """Host for ABDiff context (host machine) to connect to MinIO."""
+        return self.MINIO_S3_URL or "http://localhost:9000/"
+
+    @property
+    def minio_s3_container_url(self) -> str:
+        """Host for Transmogrifier Docker containers to connect to MinIO."""
+        return self.MINIO_S3_CONTAINER_URL or "http://host.docker.internal:9000/"
+
+    @property
+    def minio_root_user(self) -> str:
+        return self.MINIO_ROOT_USER or "minioadmin"
+
+    @property
+    def minio_root_password(self) -> str:
+        return self.MINIO_ROOT_PASSWORD or "minioadmin"
 
     @property
     def webapp_host(self) -> str:

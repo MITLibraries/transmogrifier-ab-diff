@@ -14,6 +14,7 @@ from abdiff.core import (
     calc_ab_diffs,
     calc_ab_metrics,
     collate_ab_transforms,
+    download_input_files,
     init_run,
     run_ab_transforms,
 )
@@ -148,7 +149,17 @@ def init_job(
     help="Message to describe Run.",
     default="Not provided.",
 )
-def run_diff(job_directory: str, input_files: str, message: str) -> None:
+@click.option(
+    "--download-files",
+    is_flag=True,
+    help=(
+        "Pass to download input files from AWS S3 to a local Minio S3 server "
+        "for Transmogrifier to use."
+    ),
+)
+def run_diff(
+    job_directory: str, input_files: str, message: str, *, download_files: bool
+) -> None:
 
     job_data = read_job_json(job_directory)
     run_directory = init_run(job_directory, message=message)
@@ -160,11 +171,15 @@ def run_diff(job_directory: str, input_files: str, message: str) -> None:
     else:
         input_files_list = [filepath.strip() for filepath in input_files.split(",")]
 
+    if download_files:
+        download_input_files(input_files_list)
+
     ab_transformed_file_lists = run_ab_transforms(
         run_directory=run_directory,
         image_tag_a=job_data["image_tag_a"],
         image_tag_b=job_data["image_tag_b"],
         input_files=input_files_list,
+        use_local_s3=download_files,
     )
     collated_dataset_path = collate_ab_transforms(
         run_directory=run_directory,

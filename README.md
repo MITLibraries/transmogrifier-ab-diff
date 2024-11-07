@@ -15,6 +15,43 @@ Compare transformed TIMDEX records from two versions (A,B) of Transmogrifier.
 - To lint the repo: `make lint`
 - To run the app: `pipenv run abdiff --help`
 
+### Running a Local MinIO Server
+
+TIMDEX extract files from S3 (i.e., input files to use in transformations) can be downloaded to a local MinIO server hosted via a Docker container. [MinIO is an object storage solution that provides an Amazon Web Services S3-compatible API and supports all core S3 features](https://min.io/docs/minio/kubernetes/upstream/). The MinIO server acts as a "local S3 file system", allowing the app to access data on disk through an S3 interface. Since the MinIO server runs in a Docker container, it can be easily started when needed and stopped when not in use. Any data stored in the MinIO server will persist as long as the files exist in the directory specified for `MINIO_S3_LOCAL_STORAGE`.
+
+Downloading extract files improves the runtime of a diff by reducing the number of requests sent to S3 and avoids AWS credentials timing out. Once an extract file is stored in the local MinIO server, the app can access the data from MinIO for all future runs that include the extract file, avoiding repeated downloads of data used across multiple runs. 
+
+
+1. Configure your `.env` file. In addition to the [required environment variables](#required), the following environment variables must also be set:
+   
+   ```text
+   MINIO_S3_LOCAL_STORAGE=# full file system path to the directory where MinIO stores its object data on the local disk
+   MINIO_ROOT_USER=# username for root user account for MinIO server
+   MINIO_ROOT_PASSWORD=# password for root user account MinIO server
+   TIMDEX_BUCKET=# when using CLI command 'timdex-sources-csv', this is required to know what TIMDEX bucket to use
+   ```
+
+   Note: There are additional variables required by the Local MinIO server (see vars prefixed with "MINIO" in [optional environment variables](#optional)). For these variables, defaults are provided in [abdiff.config](abdiff/config.py).
+
+2. Create an AWS profile `minio`. When prompted for an "AWS Access Key ID" and "AWS Secret Access Key", pass the values set for the `MINIO_ROOT_USER` and `MINIO_ROOT_PASSWORD` environment variables, respectively.
+   ```shell
+   aws configure --profile minio
+   ```
+
+3. Launch a local MinIO server via Docker container by running the Makefile command: 
+   ```shell 
+   make start-minio-server
+   ```
+
+   The API is accessible at: http://127.0.0.1:9000.
+   The WebUI is accessible at: http://127.0.0.1:9001.
+
+4. On your browser, navigate to the WebUI and sign into the local MinIO server. Create a bucket in the local MinIO server named after the S3 bucket containing the TIMDEX extract files that will be used in the A/B Diff.
+
+5. Proceed with A/B Diff CLI commands as needed!
+
+Once a diff run is complete, you can stop the local MinIO server using the Makefile command: `make stop-minio-server`. If you're planning to run another diff using the same files, all you have to do is restart the local MinIO server. Your data will persist as long as the files exist in the directory you specified for `MINIO_S3_LOCAL_STORAGE`.
+
 ## Concepts
 
 A **Job** in `abdiff` represents the A/B test for comparing the results from two versions of Transmogrifier.  When a job is first created, a working directory and a JSON file `job.json` with an initial set of configurations is created.
@@ -90,6 +127,11 @@ AWS_SESSION_TOKEN=# passed to Transmogrifier containers for use
 ### Optional
 
 ```text
+MINIO_S3_LOCAL_STORAGE=# full file system path to the directory where MinIO stores its object data on the local disk
+MINIO_S3_URL=# endpoint for MinIO server API; default is "http://localhost:9000/"
+MINIO_S3_CONTAINER_URL=# endpoint for the MinIO server when acccessed from inside a Docker container; default is "http://host.docker.internal:9000/"
+MINIO_ROOT_USER=# username for root user account for MinIO server
+MINIO_ROOT_PASSWORD=# password for root user account MinIO server
 WEBAPP_HOST=# host for flask webapp
 WEBAPP_PORT=# port for flask webapp
 TRANSMOGRIFIER_MAX_WORKERS=# max number of Transmogrifier containers to run in parallel; default is 6
