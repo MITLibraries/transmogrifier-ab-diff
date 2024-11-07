@@ -886,11 +886,12 @@
                 "s3"
             ],
             "hashes": [
-                "sha256:17519739590614d50a4bfb82d10e02a9bf324ab87e90d54ecddf68044ba219b7",
-                "sha256:ecf6cce737abc9bc212d48238021ff4aa3fb20ed887ecdee72a750bd329c902e"
+                "sha256:122bc60c4545748ee8e29e85bf3b917ffcef7e0ca56838734b1fa7391f77dda2",
+                "sha256:de2a028c94b7a8f5164161bf9ff2495673aa104376ce5582d21f44bf697da581"
             ],
+            "index": "pypi",
             "markers": "python_version >= '3.8'",
-            "version": "==1.35.54"
+            "version": "==1.35.56"
         },
         "botocore-stubs": {
             "hashes": [
