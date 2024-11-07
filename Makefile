@@ -1,6 +1,6 @@
 SHELL=/bin/bash
 DATETIME:=$(shell date -u +%Y%m%dT%H%M%SZ)
-MINIO_COMPOSE_FILE=abdiff/helpers/minio/docker-compose.yaml
+MINIO_COMPOSE_FILE=abdiff/extras/minio/docker-compose.yaml
 
 help: # Preview Makefile commands
 	@awk 'BEGIN { FS = ":.*#"; print "Usage:  make <target>\n\nTargets:" } \
@@ -56,9 +56,12 @@ black-apply: # Apply changes with 'black'
 ruff-apply: # Resolve 'fixable errors' with 'ruff'
 	pipenv run ruff check --fix .
 
-# Development commands
+####################################
+# MinIO local S3 commands
+####################################
+
 start-minio-server:
 	docker compose --env-file .env -f $(MINIO_COMPOSE_FILE) up -d
 
 stop-minio-server:
-	docker compose -f $(MINIO_COMPOSE_FILE) stop
+	docker compose --env-file .env -f $(MINIO_COMPOSE_FILE) stop

@@ -17,13 +17,18 @@ Compare transformed TIMDEX records from two versions (A,B) of Transmogrifier.
 
 ### Running a Local MinIO Server
 
-TIMDEX extract files from S3 (i.e., input files to use in transformations) can be downloaded to a local MinIO server hosted with a Docker container. [MinIO is an object storage solution that provides an Amazon Web Services S3-compatible API and supports all core S3 features](https://min.io/docs/minio/kubernetes/upstream/). Downloading extract files improves the runtime of a diff by reducing the number of requests sent to S3 and avoids repeated downloads of extract files.
+TIMDEX extract files from S3 (i.e., input files to use in transformations) can be downloaded to a local MinIO server hosted via a Docker container. [MinIO is an object storage solution that provides an Amazon Web Services S3-compatible API and supports all core S3 features](https://min.io/docs/minio/kubernetes/upstream/). The MinIO server acts as a "local S3 file system", allowing the app to access data on disk through an S3 interface. Since the MinIO server runs in a Docker container, it can be easily started when needed and stopped when not in use. Any data stored in the MinIO server will persist as long as the files exist in the directory specified for `MINIO_S3_LOCAL_STORAGE`.
+
+Downloading extract files improves the runtime of a diff by reducing the number of requests sent to S3 and avoids AWS credentials timing out. Once an extract file is stored in the local MinIO server, the app can access the data from MinIO for all future runs that include the extract file, avoiding repeated downloads of data used across multiple runs. 
+
 
 1. Configure your `.env` file. In addition to the [required environment variables](#required), the following environment variables must also be set:
    
    ```text
-   MINIO_S3_LOCAL_STORAGE=<absolute-path-on-local-disk>
-   TIMDEX_BUCKET=<timdex-extract-bucket>
+   MINIO_S3_LOCAL_STORAGE=# full file system path to the directory where MinIO stores its object data on the local disk
+   MINIO_ROOT_USER=# username for root user account for MinIO server
+   MINIO_ROOT_PASSWORD=# password for root user account MinIO server
+   TIMDEX_BUCKET=# when using CLI command 'timdex-sources-csv', this is required to know what TIMDEX bucket to use
    ```
 
    Note: There are additional variables required by the Local MinIO server (see vars prefixed with "MINIO" in [optional environment variables](#optional)). For these variables, defaults are provided in [abdiff.config](abdiff/config.py).
@@ -45,7 +50,7 @@ TIMDEX extract files from S3 (i.e., input files to use in transformations) can b
 
 5. Proceed with A/B Diff CLI commands as needed!
 
-Once a diff run is complete, you can stop the local MinIO server using the Makefile command: `make stop-minio-server`. If you're planning to run another diff using the same files -- good news! All you have to do is restart the local MinIO server. Your data will persist as long as the files exist in the directory you specified for `MINIO_S3_LOCAL_STORAGE`.
+Once a diff run is complete, you can stop the local MinIO server using the Makefile command: `make stop-minio-server`. If you're planning to run another diff using the same files, all you have to do is restart the local MinIO server. Your data will persist as long as the files exist in the directory you specified for `MINIO_S3_LOCAL_STORAGE`.
 
 ## Concepts
 

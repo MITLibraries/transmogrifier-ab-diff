@@ -40,36 +40,53 @@ def download_input_files(input_files: list[str]) -> None:
         aws_secret_access_key=CONFIG.minio_root_password,
     )
 
-    for input_file in input_files:
-        if check_object_exists(CONFIG.TIMDEX_BUCKET, input_file, s3_client):
-            logger.info(f"File found for input: {input_file}. Skipping download.")
-            continue
-
-        logger.info(f"Downloading input file from {CONFIG.TIMDEX_BUCKET}: {input_file}")
-        copy_command = ["aws", "s3", "cp", input_file, "-"]
-        upload_command = [
-            "aws",
-            "s3",
-            "cp",
-            "--endpoint-url",
-            CONFIG.minio_s3_url,
-            "--profile",
-            "minio",
-            "-",
-            input_file,
-        ]
-
+    success_count = 0
+    fail_count = 0
+    for i, input_file in enumerate(input_files):
         try:
-            copy_process = subprocess.run(
-                args=copy_command, check=True, capture_output=True
-            )
-            subprocess.run(
-                args=upload_command,
-                check=True,
-                input=copy_process.stdout,
+            download_input_file(input_file, s3_client)
+            success_count += 1
+            logger.info(
+                f"Input file: {i + 1} / {len(input_files)}: '{input_file}' "
+                "available locally for transformation."
             )
         except subprocess.CalledProcessError:
-            logger.exception(f"Failed to download input file: {input_file}")
+            fail_count += 1
+            logger.info(
+                f"Input file: {i + 1} / {len(input_files)}: '{input_file}' "
+                "failed to download."
+            )
+    logger.info(
+        f"Available input files: {success_count}, missing input files: {fail_count}."
+    )
+
+    if fail_count > 0:
+        raise RuntimeError(  # noqa: TRY003
+            f"{fail_count} input file(s) failed to download."
+        )
+
+
+def download_input_file(input_file: str, s3_client: S3Client) -> None:
+    if check_object_exists(CONFIG.TIMDEX_BUCKET, input_file, s3_client):
+        return
+    copy_command = ["aws", "s3", "cp", input_file, "-"]
+    upload_command = [
+        "aws",
+        "s3",
+        "cp",
+        "--endpoint-url",
+        CONFIG.minio_s3_url,
+        "--profile",
+        "minio",
+        "-",
+        input_file,
+    ]
+    copy_process = subprocess.run(args=copy_command, check=True, capture_output=True)
+    subprocess.run(
+        args=upload_command,
+        check=True,
+        input=copy_process.stdout,
+    )
 
 
 def check_object_exists(bucket: str, input_file: str, s3_client: S3Client) -> bool:
@@ -79,7 +96,6 @@ def check_object_exists(bucket: str, input_file: str, s3_client: S3Client) -> bo
     except ClientError as exception:
         if exception.response["Error"]["Code"] == "404":
             return False
-        logger.exception(f"Cannot determine if object exists for key {key}.")
         return False
     else:
         return True

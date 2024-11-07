@@ -32,10 +32,12 @@ class Config:
 
     @property
     def minio_s3_url(self) -> str:
+        """Host for ABDiff context (host machine) to connect to MinIO."""
         return self.MINIO_S3_URL or "http://localhost:9000/"
 
     @property
     def minio_s3_container_url(self) -> str:
+        """Host for Transmogrifier Docker containers to connect to MinIO."""
         return self.MINIO_S3_CONTAINER_URL or "http://host.docker.internal:9000/"
 
     @property

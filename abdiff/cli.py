@@ -150,7 +150,12 @@ def init_job(
     default="Not provided.",
 )
 @click.option(
-    "--download-files", is_flag=True, help="Pass to skip download of extract files"
+    "--download-files",
+    is_flag=True,
+    help=(
+        "Pass to download input files from AWS S3 to a local Minio S3 server "
+        "for Transmogrifier to use."
+    ),
 )
 def run_diff(
     job_directory: str, input_files: str, message: str, *, download_files: bool
