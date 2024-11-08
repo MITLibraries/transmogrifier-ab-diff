@@ -215,7 +215,7 @@ def get_joined_batches_iter(
 ) -> Generator[pa.RecordBatch, None, None]:
     """Yield pyarrow.RecordBatch objects of joined TIMDEX A/B records.
 
-    The previous step created a parquet dataset where each A an B version of a record,
+    The previous step created a parquet dataset where each A and B version of a record,
     from a single input file, was a distinct row in the dataset.  This function joins the
     A and B versions of the same intellectual record as a single row, by limiting to the
     transformed file.
@@ -298,7 +298,7 @@ def get_deduped_batches_iter(dataset_directory: str) -> Generator[pa.RecordBatch
         - if the MOST RECENT record is action='delete', then omit record entirely
 
     The same mechanism from get_joined_batches_iter() to perform a DuckDB query then yield
-    batches of records that are written to the final "collated" dataset.
+    batches of records that are written to the final "collated" dataset is used.
     """
     with duckdb.connect(":memory:") as con:
 
