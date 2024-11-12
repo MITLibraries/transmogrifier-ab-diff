@@ -88,56 +88,6 @@ def duckdb_query_run_metrics(
         return conn.fetchdf()
 
 
-def get_field_sample_records(run_directory: str, field: str) -> pd.DataFrame:
-    """Get sample of records where the passed field has a diff.
-
-    This will return a maximum of 100 records from any given source, ordered by the
-    timdex_record_id.
-    """
-    query = f"""
-    select timdex_record_id, source
-    from (
-        select
-            timdex_record_id,
-            source,
-            row_number() over (partition by source order by timdex_record_id) as row_num
-        from record_diff_matrix
-        where {field} = 1
-    ) subquery
-    where row_num <= 100
-    ;
-    """
-    parameters = None
-    return duckdb_query_run_metrics(run_directory, query, parameters)
-
-
-def get_source_sample_records(run_directory: str, source: str) -> pd.DataFrame:
-    """Get sample of records, from a given source, where a diff for any field is found.
-
-    This will return a maximum of 100 records from any given source, ordered by the
-    timdex_record_id.
-    """
-    query = """
-        select timdex_record_id, source
-        from (
-            select
-                timdex_record_id,
-                source,
-                row_number() over (
-                    partition by source order by timdex_record_id
-                ) as row_num
-            from record_diff_matrix
-            where source = ?
-            and has_diff
-        ) subquery
-        where row_num <= 100
-        ;
-        """
-    parameters = (source,)
-
-    return duckdb_query_run_metrics(run_directory, query, parameters)
-
-
 def get_record_field_diff_summary(run_directory: str, timdex_record_id: str) -> dict:
     """Provide a summary of differences for a single record (timdex_record_id)."""
     # get fields with diffs
@@ -168,4 +118,110 @@ def get_record_field_diff_summary(run_directory: str, timdex_record_id: str) -> 
             "count": len(fields_with_diffs),
             "fields": fields_with_diffs,
         }
+    }
+
+
+def query_duckdb_for_records_datatable(
+    duckdb_filepath: str,
+    draw: int = 1,
+    start: int = 0,
+    length: int = 10,
+    search_value: str = "",
+    order_column_index: int = 0,
+    order_direction: str = "asc",
+    source_filter: list | None = None,
+    modified_fields_filter: list | None = None,
+) -> dict:
+    """Perform DuckDB query against Records dataset for DataTables table.
+
+    The arguments for this function align closely with what DataTables sends to the Flask
+    endpoint for data retrieval.  These are sufficient to filter and sort the data when
+    querying from DuckDB.
+    """
+    if not source_filter:
+        source_filter = []
+    if not modified_fields_filter:
+        modified_fields_filter = []
+
+    # map column index to column name
+    column_names = [
+        "timdex_record_id",
+        "source",
+        "has_diff",
+        "modified_timdex_fields",
+    ]
+    order_column = column_names[int(order_column_index)]
+
+    with duckdb.connect(duckdb_filepath, read_only=True) as conn:
+        where_clauses = []
+        params = []
+
+        # if search box used, apply full-text searches to A and B JSON records
+        if search_value:
+            search_value_safe = (
+                "%" + search_value.replace("%", "\\%").replace("_", "\\_") + "%"
+            )
+            search_clause = """
+                        (
+                            record_a::text LIKE ?
+                            OR record_b::text LIKE ?
+                        )
+                        """
+            where_clauses.append(search_clause)
+            params.extend([search_value_safe, search_value_safe])
+
+        # filter records by source
+        if source_filter:
+            source_placeholders = ", ".join(["?"] * len(source_filter))
+            source_clause = f"source IN ({source_placeholders})"
+            where_clauses.append(source_clause)
+            params.extend(source_filter)
+
+        # filter records by rows with specific fields that have diffs
+        if modified_fields_filter:
+            modified_fields_placeholders = ", ".join(["?"] * len(modified_fields_filter))
+            modified_fields_clause = f"""
+                        EXISTS (
+                            SELECT 1
+                            FROM UNNEST(modified_timdex_fields) AS field(field_value)
+                            WHERE field_value IN ({modified_fields_placeholders})
+                        )
+                    """
+            where_clauses.append(modified_fields_clause)
+            params.extend(modified_fields_filter)
+
+        # build the base query
+        where_query = "WHERE " + " AND ".join(where_clauses) if where_clauses else ""
+        base_query = f"""
+                    SELECT
+                        timdex_record_id,
+                        source,
+                        has_diff,
+                        modified_timdex_fields::text AS modified_timdex_fields
+                    FROM records
+                    {where_query}
+                """
+
+        # get total records count (before filtering)
+        records_total = conn.execute("SELECT COUNT(*) FROM records").fetchone()[0]  # type: ignore[index]
+
+        # get filtered records count
+        records_filtered_query = f"SELECT COUNT(*) FROM records {where_query}"
+        records_filtered = conn.execute(records_filtered_query, params).fetchone()[0]  # type: ignore[index]
+
+        # apply ordering and pagination
+        order_query = f"ORDER BY {order_column} {order_direction.upper()}"
+        limit_query = f"LIMIT {length} OFFSET {start}"
+
+        # prepare final query and execute query
+        final_query = f"{base_query} {order_query} {limit_query}"
+        records_df = conn.execute(final_query, params).fetchdf()
+
+    data = records_df.to_dict(orient="records")
+
+    return {
+        "draw": draw,
+        "recordsTotal": records_total,
+        "recordsFiltered": records_filtered,
+        "data": data,
     }

@@ -1,0 +1,6 @@
+{
+  "job_directory": "tests/fixtures/jobs/example-job-3",
+  "job_message": "Not provided.",
+  "image_tag_a": "transmogrifier-abdiff-008e20c:latest",
+  "image_tag_b": "transmogrifier-abdiff-3f77c7c:latest"
+}
