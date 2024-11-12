@@ -153,13 +153,14 @@ def run_all_docker_containers(
     with ThreadPoolExecutor(max_workers=CONFIG.transmogrifier_max_workers) as executor:
         for input_file in input_files:
             filename_details = parse_timdex_filename(input_file)
+            output_file = get_transformed_filename(filename_details)
             for docker_image, transformed_directory in run_configs:
                 args = (
                     docker_image,
                     transformed_directory,
                     str(filename_details["source"]),
                     input_file,
-                    get_transformed_filename(filename_details),
+                    output_file,
                     docker_client,
                 )
                 tasks.append(
@@ -353,18 +354,13 @@ def validate_output(
 
 def get_transformed_filename(filename_details: dict) -> str:
     """Get transformed filename using extract filename details."""
-    filename_details.update(
-        stage="transformed",
-        index=f"_{sequence}" if (sequence := filename_details["index"]) else "",
-    )
-    output_filename = (
-        "{source}-{run_date}-{run_type}-{stage}-records-to-{action}{index}.json"
-    )
-    return output_filename.format(
-        source=filename_details["source"],
-        run_date=filename_details["run-date"],
-        run_type=filename_details["run-type"],
-        stage=filename_details["stage"],
-        index=filename_details["index"],
-        action=filename_details["action"],
+    return (
+        "{source}-{run_date}-{run_type}-{stage}-records-to-{action}{index}.json".format(
+            source=filename_details["source"],
+            run_date=filename_details["run-date"],
+            run_type=filename_details["run-type"],
+            stage="transformed",
+            index=f"_{sequence}" if (sequence := filename_details["index"]) else "",
+            action=filename_details["action"],
+        )
     )
