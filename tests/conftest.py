@@ -561,3 +561,45 @@ def collating_intermediate_transformed_dataset(run_directory, tmp_path):
         partition_columns=["transformed_file_name"],
     )
     return transformed_dataset_filepath
+
+
+@pytest.fixture
+def mocked_transformed_files_500(run_directory):
+    """Generate 5k A and B transformed files (1k total)."""
+    transformed_dir = Path(run_directory) / "transformed"
+    for version in ["a", "b"]:
+        version_path = transformed_dir / version
+        os.makedirs(version_path)
+        start_date = datetime.datetime(2020, 1, 1)  # noqa: DTZ001
+        for x in range(500):
+            current_date = start_date + datetime.timedelta(days=x)
+            transformed_filepath = (
+                f"libguides-{current_date.strftime('%Y-%m-%d')}-"
+                "daily-transformed-records-to-index.json"
+            )
+            with open(version_path / transformed_filepath, "w") as f:
+                json.dump(
+                    [
+                        {
+                            "timdex_record_id": f"libguides:{x}",
+                            "source": "libguides",
+                            "title": "I am title",
+                        }
+                    ],
+                    f,
+                )
+    return transformed_dir
+
+
+@pytest.fixture
+def mocked_transformed_files_500_ab_list(run_directory, mocked_transformed_files_500):
+    return (
+        [
+            file.removeprefix(f"{run_directory}/")
+            for file in glob.glob(f"{mocked_transformed_files_500}/a/*.json")
+        ],
+        [
+            file.removeprefix(f"{run_directory}/")
+            for file in glob.glob(f"{mocked_transformed_files_500}/b/*.json")
+        ],
+    )
