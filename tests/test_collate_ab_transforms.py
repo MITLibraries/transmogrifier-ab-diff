@@ -1,4 +1,5 @@
-# ruff: noqa: PLR2004
+# ruff: noqa: D205, D209, PD901, PLR2004
+
 import json
 import os
 import re
@@ -211,3 +212,41 @@ def test_get_transform_version_success(transformed_directories, output_filename)
 def test_get_transform_version_raise_error():
     with pytest.raises(ValueError, match="Transformed filepath is invalid."):
         get_transform_version("invalid")
+
+
+@pytest.mark.parametrize(
+    ("timdex_record_id", "action", "record_a_type", "record_b_type"),
+    [
+        ("libguides:1", "index", type(None), bytes),  # missing from A
+        ("libguides:3", "index", bytes, type(None)),  # missing from B
+        ("libguides:99", "delete", type(None), type(None)),  # missing from A
+        ("libguides:4", "delete", type(None), type(None)),  # missing from B
+    ],
+)
+def test_joining_dataset_handles_missing_records_success(
+    collating_intermediate_transformed_dataset,
+    timdex_record_id,
+    action,
+    record_a_type,
+    record_b_type,
+):
+    """This test asserts that, for transformed or delete files, if a timdex_record_id
+    exists in A or B, but is missing from the other, a value of 'None' is correctly
+    found after the join."""
+    batches_iter = get_joined_batches_iter(collating_intermediate_transformed_dataset)
+
+    while True:
+        df = next(batches_iter).to_pandas()
+        if timdex_record_id in list(df.timdex_record_id):
+            break
+
+    row = df.set_index("timdex_record_id").loc[timdex_record_id]
+
+    if record_a_type is type(None):
+        assert row.record_a is None
+    else:
+        assert isinstance(row.record_a, record_a_type)
+    if record_b_type is type(None):
+        assert row.record_b is None
+    else:
+        assert isinstance(row.record_b, record_b_type)

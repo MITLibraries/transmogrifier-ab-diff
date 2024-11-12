@@ -1,5 +1,6 @@
 # ruff: noqa: PD901
-
+import datetime
+import glob
 import json
 import os
 import shutil
@@ -537,3 +538,26 @@ def final_records_dataset_path(
         diffs_dataset_path=diffs_dataset_directory,
         metrics_dataset_path=diff_matrix_dataset_filepath,
     )
+
+
+@pytest.fixture
+def collating_intermediate_transformed_dataset(run_directory, tmp_path):
+    shutil.copytree(
+        "tests/fixtures/collating/sample_scenarios/transformed",
+        Path(run_directory) / "transformed",
+    )
+    ab_transformed_file_lists = [
+        [
+            file.removeprefix(run_directory + "/")
+            for file in glob.glob(f"{run_directory}/transformed/{version}/*.*")
+        ]
+        for version in ["a", "b"]
+    ]
+    transformed_dataset_filepath = tmp_path / "transformed_dataset"
+    write_to_dataset(
+        get_transformed_batches_iter(run_directory, tuple(ab_transformed_file_lists)),
+        schema=TRANSFORMED_DATASET_SCHEMA,
+        base_dir=transformed_dataset_filepath,
+        partition_columns=["transformed_file_name"],
+    )
+    return transformed_dataset_filepath

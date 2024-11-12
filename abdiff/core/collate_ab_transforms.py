@@ -263,10 +263,10 @@ def get_joined_batches_iter(
                     b AS (SELECT * FROM transformed_file WHERE version='b')
                 SELECT
                     uuid() as abdiff_record_id,
-                    a.timdex_record_id,
-                    a.source,
-                    a.run_date,
-                    a.run_type,
+                    COALESCE(a.timdex_record_id, b.timdex_record_id) as timdex_record_id,
+                    COALESCE(a.source, b.source) as source,
+                    COALESCE(a.run_date, b.run_date) as run_date,
+                    COALESCE(a.run_type, b.run_type) as run_type,
                     COALESCE(a.action, b.action) AS action,
                     a.record AS record_a,
                     b.record AS record_b
