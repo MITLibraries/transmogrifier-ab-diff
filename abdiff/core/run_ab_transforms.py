@@ -112,7 +112,7 @@ def run_ab_transforms(
     # process results
     log_file = aggregate_logs(run_directory, containers)
     logger.info(f"Log file created: {log_file}")
-    if exceptions:
+    if not CONFIG.allow_failed_transmogrifier_containers and exceptions:
         raise RuntimeError(  # noqa: TRY003
             f"{len(exceptions)} / {len(containers)} containers failed "
             "to complete successfully."

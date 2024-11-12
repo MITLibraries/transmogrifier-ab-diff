@@ -138,6 +138,7 @@ TRANSMOGRIFIER_MAX_WORKERS=# max number of Transmogrifier containers to run in p
 TRANSMOGRIFIER_TIMEOUT=# timeout for a single Transmogrifier container; default is 5 hours
 TIMDEX_BUCKET=# when using CLI command 'timdex-sources-csv', this is required to know what TIMDEX bucket to use
 PRESERVE_ARTIFACTS=# if 'true', intermediate artifacts like transformed files, collated records, etc., will not be automatically removed
+ALLOW_FAILED_TRANSMOGRIFIER_CONTAINERS=# if 'true' (default), the run will continue even if some Transmogrifier containers failed to complete successfully
 ```
 
 ## CLI commands
