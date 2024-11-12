@@ -565,7 +565,7 @@ def collating_intermediate_transformed_dataset(run_directory, tmp_path):
 
 @pytest.fixture
 def mocked_transformed_files_500(run_directory):
-    """Generate 5k A and B transformed files (1k total)."""
+    """Generate 500 A and B transformed files (1k total)."""
     transformed_dir = Path(run_directory) / "transformed"
     for version in ["a", "b"]:
         version_path = transformed_dir / version
