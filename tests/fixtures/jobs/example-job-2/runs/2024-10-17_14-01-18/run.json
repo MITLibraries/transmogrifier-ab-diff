@@ -1,10 +1,10 @@
 {
   "job_directory": "tests/fixtures/jobs/example-job-2",
   "job_message": "small job for testing purposes",
-  "image_tag_a": "transmogrifier-example-job-2-395e612:latest",
-  "image_tag_b": "transmogrifier-example-job-2-cf1024c:latest",
+  "image_tag_a": "transmogrifier-abdiff-395e612:latest",
+  "image_tag_b": "transmogrifier-abdiff-cf1024c:latest",
   "run_directory": "tests/fixtures/jobs/example-job-2/runs/2024-10-17_14-01-18",
-  "run_message": null,
+  "run_message": "Not provided.",
   "run_timestamp": "2024-10-17_14-01-18",
   "input_files": [
     "s3://timdex-extract-prod-300442551476/dspace/dspace-2024-10-11-daily-extracted-records-to-index.xml"
@@ -24,7 +24,7 @@
       "total_records_with_diff": 1,
       "records_with_diff_percent": 0.61,
       "sources": [
-        "DSpace@MIT"
+        "dspace"
       ],
       "fields_with_diffs": [
         "contributors"
@@ -32,7 +32,7 @@
     },
     "analysis": {
       "by_source": {
-        "DSpace@MIT": {
+        "dspace": {
           "count": 1,
           "field_counts": {
             "contributors": 1
@@ -43,7 +43,7 @@
         "contributors": {
           "count": 1,
           "source_counts": {
-            "DSpace@MIT": 1
+            "dspace": 1
           }
         }
       }

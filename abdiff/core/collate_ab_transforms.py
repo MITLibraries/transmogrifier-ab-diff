@@ -1,9 +1,12 @@
 # ruff: noqa: TRY003
 
+import glob
 import itertools
 import json
 import logging
+import os
 import re
+import shutil
 import tempfile
 from collections.abc import Generator
 from pathlib import Path
@@ -13,10 +16,13 @@ import ijson
 import pandas as pd
 import pyarrow as pa
 
+from abdiff.config import Config
 from abdiff.core.exceptions import OutputValidationError
 from abdiff.core.utils import parse_timdex_filename, write_to_dataset
 
 logger = logging.getLogger(__name__)
+
+CONFIG = Config()
 
 READ_BATCH_SIZE = 1_000
 TRANSFORMED_DATASET_SCHEMA = pa.schema(
@@ -33,6 +39,7 @@ TRANSFORMED_DATASET_SCHEMA = pa.schema(
 )
 COLLATED_DATASET_SCHEMA = pa.schema(
     (
+        pa.field("abdiff_record_id", pa.string()),
         pa.field("timdex_record_id", pa.string()),
         pa.field("source", pa.string()),
         pa.field("run_date", pa.date32()),
@@ -51,7 +58,8 @@ def collate_ab_transforms(
 
     This process can be summarized into two (3) important steps:
         1. Write all transformed JSON records into a temporary Parquet dataset
-           partitioned by the transformed file name.
+           partitioned by the transformed file name.  As this process works, transformed
+           files that are no longer needed are removed to free storage space.
         2. For every transformed file, use DuckDB to join A/B Parquet tables
            using the TIMDEX record ID and write joined records to a Parquet dataset.
         3. Dedupe joined records to ensure that only the most recent, not "deleted"
@@ -72,6 +80,11 @@ def collate_ab_transforms(
         f"Wrote {len(transformed_written_files)} parquet file(s) to transformed dataset"
     )
 
+    # remove transformed directory entirely
+    if not CONFIG.preserve_artifacts:
+        shutil.rmtree(Path(run_directory) / "transformed")
+        logger.info("/transformed directory removed completely.")
+
     # build temporary collated dataset
     joined_written_files = write_to_dataset(
         get_joined_batches_iter(transformed_dataset_path.name),
@@ -79,6 +92,8 @@ def collate_ab_transforms(
         schema=COLLATED_DATASET_SCHEMA,
     )
     logger.info(f"Wrote {len(joined_written_files)} parquet file(s) to collated dataset")
+    transformed_dataset_path.cleanup()
+    logger.info("Temporary transformed files dataset removed.")
 
     # build final deduped and collated dataset
     deduped_written_files = write_to_dataset(
@@ -89,12 +104,10 @@ def collate_ab_transforms(
     logger.info(
         f"Wrote {len(deduped_written_files)} parquet file(s) to deduped collated dataset"
     )
+    joined_dataset_path.cleanup()
+    logger.info("Temporary joined records dataset removed.")
 
     validate_output(collated_dataset_path)
-
-    # ensure temporary artifacts removed
-    transformed_dataset_path.cleanup()
-    joined_dataset_path.cleanup()
 
     return collated_dataset_path
 
@@ -133,12 +146,15 @@ def get_transformed_records_iter(
     # handle JSON files with records to index
     if transformed_file.endswith(".json"):
         with open(transformed_file, "rb") as file:
-            for record in ijson.items(file, "item"):
-                yield {
-                    **base_record,
-                    "timdex_record_id": record["timdex_record_id"],
-                    "record": json.dumps(record).encode(),
-                }
+            try:
+                for record in ijson.items(file, "item"):
+                    yield {
+                        **base_record,
+                        "timdex_record_id": record["timdex_record_id"],
+                        "record": json.dumps(record).encode(),
+                    }
+            except:  # noqa: E722
+                logger.exception(f"Could not yield records from file: {transformed_file}")
 
     # handle TXT files with records to delete
     else:
@@ -166,90 +182,99 @@ def get_transformed_batches_iter(
     from get_transformed_records_iter(). The returned generator can be passed to
     abdiff.core.utils.write_to_dataset() to perform batch writes to
     a Parquet dataset.
+
+    After yielding records, for both A and B versions, the transformed file is removed.
     """
+    count = 0
+    total_transformed_files = len(ab_transformed_file_lists[0]) + len(
+        ab_transformed_file_lists[1]
+    )
+
     for transformed_files in ab_transformed_file_lists:
         for transformed_file in transformed_files:
+            count += 1
+            logger.debug(
+                f"Yielding records from file {count} / {total_transformed_files}"
+                f": {transformed_file}"
+            )
+            transformed_filepath = str(Path(run_directory) / transformed_file)
             record_iter = get_transformed_records_iter(
-                transformed_file=str(Path(run_directory) / transformed_file)
+                transformed_file=transformed_filepath
             )
             for record_batch in itertools.batched(record_iter, READ_BATCH_SIZE):
                 yield pa.RecordBatch.from_pylist(list(record_batch))
 
+            # remove transformed file no longer needed
+            if not CONFIG.preserve_artifacts:
+                logger.info(f"removing original transformed file: {transformed_filepath}")
+                os.remove(transformed_filepath)
 
-def get_joined_batches_iter(dataset_directory: str) -> Generator[pa.RecordBatch]:
+
+def get_joined_batches_iter(
+    dataset_directory: str,
+) -> Generator[pa.RecordBatch, None, None]:
     """Yield pyarrow.RecordBatch objects of joined TIMDEX A/B records.
 
-    This function uses DuckDB to query the Parquet dataset of transformed
-    TIMDEX record dictionaries. It's worth noting that this Parquet dataset
-    is stored in a tempfile.TemporaryDirectory that gets deleted after the
-    function exits.
+    The previous step created a parquet dataset where each A and B version of a record,
+    from a single input file, was a distinct row in the dataset.  This function joins the
+    A and B versions of the same intellectual record as a single row, by limiting to the
+    transformed file.
 
-    The following steps are performed in sequential order:
-        1. A list of DISTINCT transformed filenames (without the file extension)
-           is retrieved.
+    For performance reasons, DuckDB is provided with ONLY the parquet files that are
+    associated with that transformed file, to prevent it from scanning all files in the
+    dataset (this was memory safe, but somewhat slow given the potentially large number
+    of transformed files).
 
-        Steps 2-4 are performed for each transformed file.
+    As records are joined, an "abdiff_record_id" UUID is minted to unambiguously reference
+    that particular row, which is helpful later during deduping.
 
-        2. Using common table expressions (CTEs) execute a query that performs
-           the following:
-           - Create a CTE called 'transformed_file' that contains all the records
-             where the partition transformed_file_name=the name of the transformed file.
-           - Create a CTE called 'a' that contains all the records from CTE
-             'transformed_file' where the column version='a'.
-           - Create a CTE called 'b' that contains all the records from CTE
-             'transformed_file' where the column version='b'.
-           - Join the 'a' and 'b' CTEs using the column timdex_record_id.
-
-        3. Read results from the query one batch at a time using fetch_record_batch().
-           Note: This will return the results as a pyarrow.RecordBatchReader.
-
-        4. Yield batches of the joined records until the pyarrow.RecordBatchReader
-           is empty.
-
-    The returned generator can be passed to abdiff.core.utils.write_to_dataset()
-    to perform batch writes of joined TIMDEX A/B records to a Parquet dataset
+    As the records are joined, record batches are yielded which get written to a new,
+    temporary "joined" dataset on disk.
 
     Args:
         dataset_directory: The root directory of the Parquet dataset of TIMDEX records
             (i.e., the tempfile.TemporaryDirectory).
     """
-    with duckdb.connect(":memory:") as con:
-        transformed_file_names = con.execute(
-            """
-            SELECT DISTINCT transformed_file_name FROM
-            read_parquet($transformed_parquet_glob, hive_partitioning=true)
-            """,
-            {"transformed_parquet_glob": f"{dataset_directory}/**/*.parquet"},
-        ).fetch_df()["transformed_file_name"]
+    partition_paths = glob.glob(f"{dataset_directory}/transformed_file_name=*")
+    transformed_file_names = [os.path.basename(p).split("=")[1] for p in partition_paths]
 
-        for transformed_file in transformed_file_names:
+    with duckdb.connect(":memory:") as con:
+        for i, transformed_file in enumerate(transformed_file_names):
+            logger.debug(
+                f"Joining records batch {i+1}/{len(transformed_file_names)}: "
+                f"{transformed_file}"
+            )
+
+            transformed_file_parquet_glob = (
+                f"{dataset_directory}/transformed_file_name={transformed_file}/*.parquet"
+            )
+
             results = con.execute(
                 """
                 WITH
                     transformed_file AS (
                         SELECT * FROM
                         read_parquet(
-                            $transformed_parquet_glob,
+                            $transformed_file_parquet_glob,
                             hive_partitioning=true
                         )
-                        WHERE transformed_file_name=$transformed_file_name
                     ),
                     a AS (SELECT * FROM transformed_file WHERE version='a'),
                     b AS (SELECT * FROM transformed_file WHERE version='b')
                 SELECT
-                    COALESCE(a.timdex_record_id, b.timdex_record_id) timdex_record_id,
-                    COALESCE(a.source, b.source) source,
-                    COALESCE(a.run_date, b.run_date) run_date,
-                    COALESCE(a.run_type, b.run_type) run_type,
-                    COALESCE(a.action, b.action) "action",
-                    a.record as record_a,
-                    b.record as record_b
+                    uuid() as abdiff_record_id,
+                    COALESCE(a.timdex_record_id, b.timdex_record_id) as timdex_record_id,
+                    COALESCE(a.source, b.source) as source,
+                    COALESCE(a.run_date, b.run_date) as run_date,
+                    COALESCE(a.run_type, b.run_type) as run_type,
+                    COALESCE(a.action, b.action) AS action,
+                    a.record AS record_a,
+                    b.record AS record_b
                 FROM a
                 FULL OUTER JOIN b USING (timdex_record_id)
                 """,
                 {
-                    "transformed_parquet_glob": f"{dataset_directory}/**/*.parquet",
-                    "transformed_file_name": transformed_file,
+                    "transformed_file_parquet_glob": transformed_file_parquet_glob,
                 },
             ).fetch_record_batch(READ_BATCH_SIZE)
 
@@ -267,29 +292,41 @@ def get_deduped_batches_iter(dataset_directory: str) -> Generator[pa.RecordBatch
     be duplicated across multiple files ("full" vs "daily" runs, incrementing date runs,
     etc.)
 
-    This function writes the final dataset by deduping records from the temporary collated
+    This function writes the final dataset by deduping records from the temporary joined
     dataset, given the following logic:
         - use the MOST RECENT record based on 'run_date'
         - if the MOST RECENT record is action='delete', then omit record entirely
 
-    The same mechanism is used by get_joined_batches_iter() to perform a DuckDB query then
-    stream write batches to a parquet dataset.
+    The same mechanism from get_joined_batches_iter() to perform a DuckDB query then yield
+    batches of records that are written to the final "collated" dataset is used.
     """
     with duckdb.connect(":memory:") as con:
 
         results = con.execute(
             """
-            WITH collated as (
-              select * from read_parquet($collated_parquet_glob, hive_partitioning=true)
+            WITH joined as (
+                select * from read_parquet($joined_parquet_glob, hive_partitioning=true)
             ),
             latest_records AS (
                 SELECT
-                    *,
+                    abdiff_record_id,
                     ROW_NUMBER() OVER (
                         PARTITION BY timdex_record_id
-                        ORDER BY run_date DESC
+                        /*
+                        This ordering is important:
+                            1. order by run date, ensuring most recent is first
+                            2. order by run-type, where "daily" sorts before "full"
+                            3. order by action, where "delete" takes precedence over
+                               "index"
+                        This ordering coupled with the ROW_NUMBER(), ensures we get only
+                        a single and most recent timdex_record_id in the dataset.
+                        */
+                        ORDER BY
+                            run_date desc,
+                            run_type,
+                            action
                     ) AS rn
-                FROM collated
+                FROM joined
             ),
             deduped_records AS (
                 SELECT *
@@ -297,17 +334,19 @@ def get_deduped_batches_iter(dataset_directory: str) -> Generator[pa.RecordBatch
                 WHERE rn = 1 AND action != 'delete'
             )
             SELECT
-                timdex_record_id,
-                source,
-                run_date,
-                run_type,
-                action,
-                record_a,
-                record_b
-            FROM deduped_records;
+                j.abdiff_record_id,
+                j.timdex_record_id,
+                j.source,
+                j.run_date,
+                j.run_type,
+                j.action,
+                j.record_a,
+                j.record_b
+            FROM joined j
+            inner join deduped_records dr on dr.abdiff_record_id = j.abdiff_record_id
             """,
             {
-                "collated_parquet_glob": f"{dataset_directory}/**/*.parquet",
+                "joined_parquet_glob": f"{dataset_directory}/**/*.parquet",
             },
         ).fetch_record_batch(READ_BATCH_SIZE)
 

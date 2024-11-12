@@ -1,8 +1,10 @@
 """abdiff.core.utils"""
 
 import json
+import logging
 import os
 import re
+import resource
 from collections.abc import Iterable
 from pathlib import Path
 
@@ -10,6 +12,8 @@ import pyarrow as pa
 import pyarrow.dataset as ds
 
 from abdiff.config import Config
+
+logger = logging.getLogger(__name__)
 
 CONFIG = Config()
 
@@ -114,6 +118,7 @@ def write_to_dataset(
     base_dir: str | Path,
     schema: pa.Schema | None = None,
     partition_columns: list[str] | None = None,
+    max_open_files: int | None = None,
 ) -> list[ds.WrittenFile]:
     """Standardized way of writing to parquet datasets in application.
 
@@ -124,9 +129,21 @@ def write_to_dataset(
     also be provided, because a schema cannot be extracted or inferred from the lazily
     evaluated generator.  All other types passed do not explicitly require a schema,
     as it can be inferred.
-    """
-    written_files = []
 
+    This function also dynamically sets option 'max_open_files' to align with current OS
+    level configurations open file limits, ensuring not to exceed, which can result in
+    "OSError: [Errno 24] Too many open files".
+    """
+    # read open file limit and set max_open_files as a fraction
+    if not max_open_files:
+        soft_limit, hard_limit = resource.getrlimit(resource.RLIMIT_NOFILE)
+        max_open_files = max(int(soft_limit * 0.75), 50)
+        logger.debug(
+            f"OS open file limit of {soft_limit} detected, "
+            f"limiting max open files to {max_open_files}"
+        )
+
+    written_files = []
     ds.write_dataset(
         data,
         schema=schema,
@@ -140,6 +157,6 @@ def write_to_dataset(
         max_rows_per_group=1_000,
         max_rows_per_file=100_000,
         file_visitor=lambda written_file: written_files.append(written_file),
+        max_open_files=max_open_files,
     )
-
     return written_files  # type: ignore[return-value] # mypy incorrect here

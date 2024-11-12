@@ -136,16 +136,22 @@ def test_view_job_webapp_host_and_port_configurable(
 @patch("abdiff.cli.collate_ab_transforms")
 @patch("abdiff.cli.calc_ab_diffs")
 @patch("abdiff.cli.calc_ab_metrics")
+@patch("abdiff.cli.create_final_records")
 def test_run_diff_success(
     mock_init_run,
     mock_run_ab_transforms,
     mock_collate_ab_transforms,
     mock_calc_ab_diffs,
     mock_calc_ab_metrics,
+    mock_create_final_records,
     caplog,
     runner,
     example_job_directory,
+    monkeypatch,
 ):
+    # skip any attempts to remove any mocked artifacts
+    monkeypatch.setenv("PRESERVE_ARTIFACTS", "true")
+
     # mock initialization of run
     mock_init_run.return_value = str(
         Path(example_job_directory) / "runs" / "2024-10-15_12-00-00"
@@ -170,7 +176,10 @@ def test_run_diff_success(
     mock_calc_ab_diffs.return_value = "path/to/run/diffs"
 
     # mock metrics generation
-    mock_calc_ab_metrics.return_value = {"msg": "these are the from the diffs metrics"}
+    mock_calc_ab_metrics.return_value = "path/to/run/metrics"
+
+    # mock final records dataset
+    mock_create_final_records.return_value = "path/to/run/records"
 
     caplog.set_level("DEBUG")
     result = runner.invoke(
@@ -191,3 +200,4 @@ def test_run_diff_success(
     mock_collate_ab_transforms.assert_called()
     mock_calc_ab_diffs.assert_called()
     mock_calc_ab_metrics.assert_called()
+    mock_create_final_records.assert_called()

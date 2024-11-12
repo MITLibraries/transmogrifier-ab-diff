@@ -6,6 +6,14 @@ import duckdb
 import pandas as pd
 from flask import g
 
+SPARSE_MATRIX_SKIP_FIELDS = [
+    "record_a",
+    "record_b",
+    "ab_diff",
+    "modified_timdex_fields",
+    "has_diff",
+]
+
 
 def get_run_directory(run_timestamp: str) -> str:
     return str(Path(g.job_directory) / "runs" / run_timestamp)
@@ -16,7 +24,7 @@ def get_record_a_b_versions(
 ) -> tuple[dict, dict]:
     """Retrieve A and B versions of a single record from diffs dataset."""
     with duckdb.connect() as conn:
-        parquet_glob_pattern = f"{run_directory}/diffs/**/*.parquet"
+        parquet_glob_pattern = f"{run_directory}/records/**/*.parquet"
         conn.execute(
             """
             select record_a, record_b
@@ -62,11 +70,13 @@ def duckdb_query_run_metrics(
     with duckdb.connect() as conn:
 
         # prepare view of record diff matrix
-        parquet_glob_pattern = f"{run_directory}/metrics/**/*.parquet"
+        parquet_glob_pattern = f"{run_directory}/records/**/*.parquet"
         conn.execute(
             f"""
             create view record_diff_matrix as (
-                select * from read_parquet(
+                select
+                * exclude ({",".join([f'"{col}"' for col in SPARSE_MATRIX_SKIP_FIELDS])})
+                from read_parquet(
                     '{parquet_glob_pattern}',
                     hive_partitioning=true
                 )
@@ -146,9 +156,10 @@ def get_record_field_diff_summary(run_directory: str, timdex_record_id: str) -> 
         )
     record_row = results_df.iloc[0].to_dict()
 
-    skip_fields = ["timdex_record_id", "source"]
     timdex_fields = {
-        field: value for field, value in record_row.items() if field not in skip_fields
+        field: value
+        for field, value in record_row.items()
+        if field not in SPARSE_MATRIX_SKIP_FIELDS
     }
     fields_with_diffs = [field for field, value in timdex_fields.items() if value == 1]
 

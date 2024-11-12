@@ -1,5 +1,6 @@
 # ruff: noqa: PD901
-
+import datetime
+import glob
 import json
 import os
 import shutil
@@ -16,7 +17,7 @@ import pytest
 from click.testing import CliRunner
 from freezegun import freeze_time
 
-from abdiff.core import calc_ab_diffs, init_job, init_run
+from abdiff.core import calc_ab_diffs, create_final_records, init_job, init_run
 from abdiff.core.calc_ab_metrics import (
     _prepare_duckdb_context,
     create_record_diff_matrix_dataset,
@@ -391,6 +392,7 @@ def collated_with_dupe_dataset_directory(run_directory):
     df = pd.DataFrame(
         [
             {
+                "abdiff_record_id": "ece5ee65-20af-4410-89d9-1afe58531be8",
                 "timdex_record_id": "abc123",
                 "source": "alma",
                 "run_date": "2024-10-01",
@@ -404,6 +406,7 @@ def collated_with_dupe_dataset_directory(run_directory):
                 ).encode(),
             },
             {
+                "abdiff_record_id": "f1b4670c-cbfe-4246-8cb9-be9eabd78756",
                 "timdex_record_id": "def456",
                 "source": "dspace",
                 "run_date": "2024-10-01",
@@ -417,6 +420,7 @@ def collated_with_dupe_dataset_directory(run_directory):
                 ).encode(),
             },
             {
+                "abdiff_record_id": "49e9aa7f-11f2-41d3-aab4-4c76efab51aa",
                 "timdex_record_id": "def456",
                 "source": "dspace",
                 "run_date": "2024-10-02",
@@ -430,6 +434,7 @@ def collated_with_dupe_dataset_directory(run_directory):
                 ).encode(),
             },
             {
+                "abdiff_record_id": "7fafe666-a435-4939-b50a-ee059b36fb9f",
                 "timdex_record_id": "ghi789",
                 "source": "libguides",
                 "run_date": "2024-10-01",
@@ -448,6 +453,7 @@ def collated_with_dupe_dataset_directory(run_directory):
                 ).encode(),
             },
             {
+                "abdiff_record_id": "47d038ec-f231-4634-b20e-97e26c7829ea",
                 "timdex_record_id": "ghi789",
                 "source": "libguides",
                 "run_date": "2024-10-02",
@@ -521,3 +527,79 @@ def duckdb_context_with_diff_matrix(
         function_duckdb_connection, diff_matrix_dataset_filepath
     )
     return function_duckdb_connection, fields, sources
+
+
+@pytest.fixture
+def final_records_dataset_path(
+    run_directory, diffs_dataset_directory, diff_matrix_dataset_filepath
+):
+    return create_final_records(
+        run_directory=run_directory,
+        diffs_dataset_path=diffs_dataset_directory,
+        metrics_dataset_path=diff_matrix_dataset_filepath,
+    )
+
+
+@pytest.fixture
+def collating_intermediate_transformed_dataset(run_directory, tmp_path):
+    shutil.copytree(
+        "tests/fixtures/collating/sample_scenarios/transformed",
+        Path(run_directory) / "transformed",
+    )
+    ab_transformed_file_lists = [
+        [
+            file.removeprefix(run_directory + "/")
+            for file in glob.glob(f"{run_directory}/transformed/{version}/*.*")
+        ]
+        for version in ["a", "b"]
+    ]
+    transformed_dataset_filepath = tmp_path / "transformed_dataset"
+    write_to_dataset(
+        get_transformed_batches_iter(run_directory, tuple(ab_transformed_file_lists)),
+        schema=TRANSFORMED_DATASET_SCHEMA,
+        base_dir=transformed_dataset_filepath,
+        partition_columns=["transformed_file_name"],
+    )
+    return transformed_dataset_filepath
+
+
+@pytest.fixture
+def mocked_transformed_files_500(run_directory):
+    """Generate 500 A and B transformed files (1k total)."""
+    transformed_dir = Path(run_directory) / "transformed"
+    for version in ["a", "b"]:
+        version_path = transformed_dir / version
+        os.makedirs(version_path)
+        start_date = datetime.datetime(2020, 1, 1)  # noqa: DTZ001
+        for x in range(500):
+            current_date = start_date + datetime.timedelta(days=x)
+            transformed_filepath = (
+                f"libguides-{current_date.strftime('%Y-%m-%d')}-"
+                "daily-transformed-records-to-index.json"
+            )
+            with open(version_path / transformed_filepath, "w") as f:
+                json.dump(
+                    [
+                        {
+                            "timdex_record_id": f"libguides:{x}",
+                            "source": "libguides",
+                            "title": "I am title",
+                        }
+                    ],
+                    f,
+                )
+    return transformed_dir
+
+
+@pytest.fixture
+def mocked_transformed_files_500_ab_list(run_directory, mocked_transformed_files_500):
+    return (
+        [
+            file.removeprefix(f"{run_directory}/")
+            for file in glob.glob(f"{mocked_transformed_files_500}/a/*.json")
+        ],
+        [
+            file.removeprefix(f"{run_directory}/")
+            for file in glob.glob(f"{mocked_transformed_files_500}/b/*.json")
+        ],
+    )

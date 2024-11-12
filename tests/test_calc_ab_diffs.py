@@ -34,11 +34,6 @@ def test_calc_record_diff_no_diff():
     assert not has_diff
 
 
-def test_calc_record_diff_one_input_is_none():
-    a = {"color": "green"}
-    assert calc_record_diff(a, None) == (None, None, False)
-
-
 def test_calc_record_diff_array_by_default_order_not_a_diff():
     """Arrays with the same values, but differently ordered, not considered a diff."""
     a = {"colors": ["green", "red"]}
@@ -77,6 +72,19 @@ def test_calc_record_diff_array_repetition_is_reported_when_diff():
     )
     assert modified_timdex_fields == {"colors"}
     assert has_diff
+
+
+def test_calc_record_handles_missing_a_or_b():
+    a, b = None, {"color": "green"}
+    ab_diff, modified_timdex_fields, has_diff = calc_record_diff(a, b)
+    assert modified_timdex_fields == ["color"]
+    assert has_diff
+
+
+def test_calc_record_handles_both_missing():
+    a, b = None, None
+    ab_diff, modified_timdex_fields, has_diff = calc_record_diff(a, b)
+    assert not has_diff
 
 
 def test_diffed_batches_yields_pyarrow_record_batch(collated_dataset):

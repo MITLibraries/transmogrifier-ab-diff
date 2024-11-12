@@ -21,6 +21,8 @@ class Config:
         "TRANSMOGRIFIER_MAX_WORKERS",
         "TRANSMOGRIFIER_TIMEOUT",
         "TIMDEX_BUCKET",
+        "PRESERVE_ARTIFACTS",
+        "ALLOW_FAILED_TRANSMOGRIFIER_CONTAINERS",
     )
 
     def __getattr__(self, name: str) -> Any:  # noqa: ANN401
@@ -80,6 +82,19 @@ class Config:
             "libguides",
             "researchdatabases",
         ]
+
+    @property
+    def preserve_artifacts(self) -> bool:
+        return bool(
+            self.PRESERVE_ARTIFACTS and self.PRESERVE_ARTIFACTS.strip().lower() == "true"
+        )
+
+    @property
+    def allow_failed_transmogrifier_containers(self) -> bool:
+        return bool(
+            self.ALLOW_FAILED_TRANSMOGRIFIER_CONTAINERS
+            and self.ALLOW_FAILED_TRANSMOGRIFIER_CONTAINERS.strip().lower() == "true"
+        )
 
 
 def configure_logger(logger: logging.Logger, *, verbose: bool) -> str:

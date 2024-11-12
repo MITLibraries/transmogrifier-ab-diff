@@ -163,8 +163,10 @@ def test_full_metrics_data_has_expected_structure(diff_matrix_dataset_filepath):
 
 
 def test_core_function_updates_run_data(run_directory, diffs_dataset_directory):
-    metrics = calc_ab_metrics(run_directory, diffs_dataset_directory)
-    run_data = read_run_json(run_directory)
+    metrics_dataset_filepath = calc_ab_metrics(run_directory, diffs_dataset_directory)
 
-    assert isinstance(metrics, dict)
-    assert run_data["metrics"] == metrics
+    metrics_dataset = load_dataset(metrics_dataset_filepath)
+    assert isinstance(metrics_dataset, ds.Dataset)
+
+    run_data = read_run_json(run_directory)
+    assert isinstance(run_data["metrics"], dict)
