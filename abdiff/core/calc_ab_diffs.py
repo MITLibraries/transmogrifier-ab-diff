@@ -110,32 +110,53 @@ def calc_record_diff(
     *,
     ignore_order: bool = True,
     report_repetition: bool = True,
-) -> tuple[str | None, list[str] | None, bool]:
+) -> tuple[str, set[str], bool]:
     """Calculate diff from two JSON byte strings.
 
     The DeepDiff library has the property 'affected_root_keys' on the produced diff object
     that is very useful for our purposes.  At this time, we simply want to know if
     anything about a particular root level TIMDEX field (e.g. 'dates' or 'title') has
-    changed which this method provides explicitly.  We also serialize the full diff to
-    JSON via the to_json() method for storage and possible further analysis.
+    changed which this method provides explicitly.  In the unlikely case that the records
+    share ZERO keys, a special case is handled where the modified root paths are returned
+    as only ['root'], in which case we get a combined set keys from both records, which is
+    effectively the modified root fields.
 
-    This method returns a tuple:
+    We also serialize the full diff to JSON via the to_json() method for storage and
+    possible further analysis.
+
+    Returns tuple(ab_diff, modified_timdex_fields, has_diff):
         - ab_diff: [str] - full diff as JSON
         - modified_timdex_fields: list[str] - list of modified root keys (TIMDEX fields)
         - has_diff: bool - True/False if any diff present
     """
-    if record_a is None or record_b is None:
-        return None, None, False
+    # Replace None with empty dict
+    record_a = record_a or {}
+    record_b = record_b or {}
+
+    # Parse JSON strings or bytes into dictionaries
+    if isinstance(record_a, (str | bytes)):
+        record_a = json.loads(record_a)
+    if isinstance(record_b, (str | bytes)):
+        record_b = json.loads(record_b)
 
     diff = DeepDiff(
-        json.loads(record_a) if isinstance(record_a, str | bytes) else record_a,
-        json.loads(record_b) if isinstance(record_b, str | bytes) else record_b,
+        record_a,
+        record_b,
         ignore_order=ignore_order,
         report_repetition=report_repetition,
     )
 
     ab_diff = diff.to_json()
-    modified_timdex_fields = diff.affected_root_keys
+
+    # get modified root fields, handling edge cases
+    if diff.affected_paths != ["root"]:
+        modified_timdex_fields = diff.affected_root_keys
+    else:
+        modified_timdex_fields = set()
+        for record in [record_a, record_b]:
+            if isinstance(record, dict):
+                modified_timdex_fields.update(record.keys())
+
     has_diff = bool(modified_timdex_fields)
 
     return ab_diff, modified_timdex_fields, has_diff
