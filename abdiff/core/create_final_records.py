@@ -4,7 +4,6 @@ from pathlib import Path
 
 import duckdb
 import pyarrow as pa
-import pyarrow.dataset as ds
 
 from abdiff.config import Config
 from abdiff.core.utils import (
@@ -38,13 +37,10 @@ def create_final_records(
     """
     logger.info("Creating final records dataset from 'diffs' and 'metrics' datasets.")
     run_data = read_run_json(run_directory)
-
-    diffs_dataset = load_dataset(diffs_dataset_path)
-    metrics_dataset = load_dataset(metrics_dataset_path)
-
     metrics_timdex_field_columns = run_data["metrics"]["summary"]["fields_with_diffs"]
 
     # get list of unique columns from metrics dataset, and create final dataset schema
+    metrics_dataset = load_dataset(metrics_dataset_path)
     metrics_columns = (
         pa.field(name, pa.int64())
         for name in metrics_dataset.schema.names
@@ -68,7 +64,7 @@ def create_final_records(
     records_dataset_path = str(Path(run_directory) / "records")
     write_to_dataset(
         get_final_records_iter(
-            diffs_dataset, metrics_dataset, metrics_timdex_field_columns
+            diffs_dataset_path, metrics_dataset_path, metrics_timdex_field_columns
         ),
         base_dir=records_dataset_path,
         schema=final_records_dataset_schema,
@@ -84,16 +80,32 @@ def create_final_records(
 
 
 def get_final_records_iter(
-    diffs_dataset: ds.Dataset,
-    metrics_dataset: ds.Dataset,
+    diffs_dataset_path: str,
+    metrics_dataset_path: str,
     metrics_timdex_field_columns: list[str],
 ) -> Generator[pa.RecordBatch, None, None]:
 
     with duckdb.connect(":memory:") as conn:
 
-        # register datasets in DuckDB for use
-        conn.register("diffs", diffs_dataset.to_table())
-        conn.register("metrics", metrics_dataset.to_table())
+        # create views for diffs and metrics datasets to join
+        conn.execute(
+            f"""
+            create view diffs as
+            select * from read_parquet(
+                '{diffs_dataset_path}/**/*.parquet',
+                hive_partitioning=true
+            )
+            """
+        )
+        conn.execute(
+            f"""
+            create view metrics as
+            select * from read_parquet(
+                '{metrics_dataset_path}/**/*.parquet',
+                hive_partitioning=true
+            )
+            """
+        )
 
         # prepare select columns
         select_columns = ",".join(
