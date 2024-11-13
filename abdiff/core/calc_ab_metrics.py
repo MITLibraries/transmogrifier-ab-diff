@@ -14,7 +14,7 @@ from abdiff.core.utils import load_dataset, update_or_create_run_json, write_to_
 
 logger = logging.getLogger(__name__)
 
-NON_TIMDEX_FIELD_COLUMNS = ["timdex_record_id", "source", "has_diff"]
+NON_TIMDEX_FIELD_COLUMNS = ["timdex_record_id", "source", "has_diff", "a_or_b_missing"]
 
 
 def calc_ab_metrics(
@@ -65,7 +65,14 @@ def create_record_diff_matrix_dataset(
     for i, batch in enumerate(
         diffs_ds.to_batches(
             batch_size=batch_size,
-            columns=["timdex_record_id", "source", "modified_timdex_fields", "has_diff"],
+            columns=[
+                "timdex_record_id",
+                "source",
+                "modified_timdex_fields",
+                "has_diff",
+                "record_a",
+                "record_b",
+            ],
         )
     ):
         start_time = time.time()
@@ -73,14 +80,20 @@ def create_record_diff_matrix_dataset(
 
         batch_metrics = []
         for _, row in batch_df.iterrows():
+            has_diff = 1 if row["has_diff"] == "true" else 0
+            a_or_b_missing = (
+                1 if (pd.isna(row["record_a"]) or pd.isna(row["record_b"])) else 0
+            )
+
             record_metrics = {
                 "timdex_record_id": row["timdex_record_id"],
                 "source": row["source"],
-                "has_diff": (1 if row["has_diff"] == "true" else 0),
+                "has_diff": has_diff,
+                "a_or_b_missing": a_or_b_missing,
             }
 
             # for each modified field (root key in diff), set column and value = 1 (True)
-            if row["modified_timdex_fields"] is not None:
+            if not a_or_b_missing and row["modified_timdex_fields"] is not None:
                 for field in row["modified_timdex_fields"]:
                     record_metrics[field] = 1
 

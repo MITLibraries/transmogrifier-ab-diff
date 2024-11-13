@@ -77,7 +77,7 @@ def test_calc_record_diff_array_repetition_is_reported_when_diff():
 def test_calc_record_handles_missing_a_or_b():
     a, b = None, {"color": "green"}
     ab_diff, modified_timdex_fields, has_diff = calc_record_diff(a, b)
-    assert modified_timdex_fields == ["color"]
+    assert modified_timdex_fields == set()
     assert has_diff
 
 

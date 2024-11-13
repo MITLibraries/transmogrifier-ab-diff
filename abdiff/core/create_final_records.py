@@ -59,6 +59,7 @@ def create_final_records(
             pa.field("ab_diff", pa.string()),
             pa.field("modified_timdex_fields", pa.list_(pa.string())),
             pa.field("has_diff", pa.string()),
+            pa.field("a_or_b_missing", pa.int32()),
             *metrics_columns,  # type: ignore[arg-type]
         )
     )
