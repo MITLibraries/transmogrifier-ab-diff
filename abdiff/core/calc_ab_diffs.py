@@ -110,7 +110,7 @@ def calc_record_diff(
     *,
     ignore_order: bool = True,
     report_repetition: bool = True,
-) -> tuple[str, set[str], bool]:
+) -> tuple[str | None, set[str], bool]:
     """Calculate diff from two JSON byte strings.
 
     The DeepDiff library has the property 'affected_root_keys' on the produced diff object
@@ -124,14 +124,21 @@ def calc_record_diff(
     We also serialize the full diff to JSON via the to_json() method for storage and
     possible further analysis.
 
+    If either A or B record is None, we immediately return (None, set(), True) which
+    indicates the records are different, but it would be inaccurate to provide any details
+    about the difference given that one is absent.  If both records are None, we return
+    (None, set(), False) because truly no diff.
+
     Returns tuple(ab_diff, modified_timdex_fields, has_diff):
-        - ab_diff: [str] - full diff as JSON
-        - modified_timdex_fields: list[str] - list of modified root keys (TIMDEX fields)
-        - has_diff: bool - True/False if any diff present
+        - ab_diff: full diff as JSON
+        - modified_timdex_fields: set of modified root keys (TIMDEX fields)
+        - has_diff: True/False if any diff present
     """
-    # Replace None with empty dict
-    record_a = record_a or {}
-    record_b = record_b or {}
+    # handle cases where record A and/or B is None
+    if record_a is None and record_b is None:
+        return None, set(), False  # both absent, no diff
+    if record_a is None or record_b is None:
+        return None, set(), True  # one absent, so diff, but no details needed
 
     # Parse JSON strings or bytes into dictionaries
     if isinstance(record_a, (str | bytes)):
