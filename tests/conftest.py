@@ -32,8 +32,9 @@ from abdiff.core.utils import create_subdirectories, load_dataset, write_to_data
 class Container:
     """Stub for docker.models.container.Container object."""
 
-    def __init__(self, id, labels, attrs: dict | None = None):  # noqa: A002
+    def __init__(self, id, short_id, labels, attrs: dict | None = None):  # noqa: A002
         self.id = id
+        self.short_id = short_id
         self.labels = labels
         self.status = "created"
         self.run_duration = 0.5
@@ -56,8 +57,10 @@ class Container:
         if time.time() - self.start_time >= self.run_duration:
             self.status = "exited"
 
-    def logs(self):
+    def logs(self, *, stream: bool = True):
         with open("tests/fixtures/transmogrifier-logs.txt", "rb") as file:
+            if stream:
+                yield from file
             return file.read()
 
     def stop(self):
@@ -110,6 +113,7 @@ class MockedContainerRun:
         if self.errors:
             return Container(
                 id=container_id,
+                short_id=container_id[:3],
                 labels={
                     "docker_image": image_name,
                     "source": "source",
@@ -119,6 +123,7 @@ class MockedContainerRun:
             )
         return Container(
             id=container_id,
+            short_id=container_id[:3],
             labels={
                 "docker_image": image_name,
                 "source": "source",
@@ -277,6 +282,7 @@ def mocked_docker_container_and_image(
 def mocked_docker_container_a():
     return Container(
         id="abc123",
+        short_id="abc",
         labels={
             "docker_image": "transmogrifier-example-job-1-abc123:latest",
             "source": "source",
@@ -289,6 +295,7 @@ def mocked_docker_container_a():
 def mocked_docker_container_b():
     return Container(
         id="def456",
+        short_id="def",
         labels={
             "docker_image": "transmogrifier-example-job-1-def456:latest",
             "source": "source",

@@ -88,8 +88,10 @@ def run_ab_transforms(
     # initialize environment
     if not docker_client:
         docker_client = docker.from_env()
+
     transformed_directory_a, transformed_directory_b = create_subdirectories(
-        base_directory=run_directory, subdirectories=["transformed/a", "transformed/b"]
+        base_directory=run_directory,
+        subdirectories=["transformed/a", "transformed/b"],
     )
     logger.info(
         "Transformed directories created: "
@@ -102,19 +104,17 @@ def run_ab_transforms(
 
     # run containers and collect results
     futures = run_all_docker_containers(
-        docker_client, input_files, run_configs, use_local_s3=use_local_s3
+        docker_client, input_files, run_configs, run_directory, use_local_s3=use_local_s3
     )
-    containers, exceptions = collect_container_results(futures)
+    exceptions = collect_container_results(futures)
     logger.info(
-        f"Successful containers: {len(containers)}, failed containers: {len(exceptions)}"
+        f"Successful containers: {len(futures)}, failed containers: {len(exceptions)}"
     )
 
     # process results
-    log_file = aggregate_logs(run_directory, containers)
-    logger.info(f"Log file created: {log_file}")
     if not CONFIG.allow_failed_transmogrifier_containers and exceptions:
         raise RuntimeError(  # noqa: TRY003
-            f"{len(exceptions)} / {len(containers)} containers failed "
+            f"{len(exceptions)} / {len(futures)} containers failed "
             "to complete successfully."
         )
     ab_transformed_file_lists = get_transformed_files(run_directory)
@@ -137,6 +137,7 @@ def run_all_docker_containers(
     docker_client: docker.client.DockerClient,
     input_files: list[str],
     run_configs: list[tuple],
+    run_directory: str,
     *,
     use_local_s3: bool = False,
 ) -> list[Future]:
@@ -157,6 +158,7 @@ def run_all_docker_containers(
             for docker_image, transformed_directory in run_configs:
                 args = (
                     docker_image,
+                    run_directory,
                     transformed_directory,
                     str(filename_details["source"]),
                     input_file,
@@ -175,6 +177,7 @@ def run_all_docker_containers(
 
 def run_docker_container(
     docker_image: str,
+    run_directory: str,
     transformed_directory: str,
     source: str,
     input_file: str,
@@ -218,10 +221,7 @@ def run_docker_container(
         },
         volumes=[f"{os.path.abspath(transformed_directory)}:/tmp"],
     )
-    logger.info(
-        f"Container '{container.id}' (Docker image: {docker_image}) "
-        f"RUNNING transform for '{source}' input_file: {input_file}."
-    )
+    logger.info(f"Transmogrifier container ({container.short_id}) STARTED: {input_file}")
 
     exception = None
     try:
@@ -229,13 +229,19 @@ def run_docker_container(
         while True:
             time.sleep(0.5)
             container.reload()
+            elapsed_time = time.perf_counter() - start_time
             if container.status == "exited":
-                logger.info(f"Container {container.id} exited.")
+                logger.info(
+                    f"Transmogrifier container ({container.short_id}) EXITED, "
+                    f"elapsed {timedelta(seconds=elapsed_time)}: {input_file}"
+                )
+                write_log_file(run_directory, input_file, container)
                 break
 
             if time.perf_counter() - start_time > timeout:
                 logger.error(
-                    f"Container {container.id} timed out after {timeout} seconds"
+                    f"Transmogrifier container ({container.short_id}) TIMED OUT, "
+                    f"elapsed {timedelta(seconds=elapsed_time)}: {input_file}"
                 )
                 container.stop()
                 exception = DockerContainerTimeoutError(
@@ -245,14 +251,14 @@ def run_docker_container(
 
     except Exception as e:
         exception = e  # type: ignore[assignment]
-        logger.exception("Unhandled exception while waiting for container to complete.")
+        logger.exception(
+            f"Transmogrifier container ({container.short_id}) UNHANDLED EXCEPTION: {input_file}"  # noqa: E501
+        )
 
     return container, exception
 
 
-def collect_container_results(
-    futures: list[Future],
-) -> tuple[list[Container], list[Exception]]:
+def collect_container_results(futures: list[Future]) -> list[Exception]:
     """Collect results of container executions.
 
     Each future will contain a tuple of (Container, Exception) where the exception may
@@ -261,11 +267,9 @@ def collect_container_results(
 
     Returns a tuple of (Containers (success), Exceptions (failure)) from all executions.
     """
-    containers = []
     exceptions = []
     for future in futures:
         container, exception = future.result()
-        containers.append(container)
 
         if exception:
             exceptions.append(exception)
@@ -273,27 +277,33 @@ def collect_container_results(
             exceptions.append(DockerContainerRuntimeError(container.id))
 
     logger.info(
-        f"Container results collected: {len(containers) - len(exceptions)} successes, "
+        f"Container results collected: {len(futures) - len(exceptions)} successes, "
         f"{len(exceptions)} failures"
     )
-    return containers, exceptions
+    return exceptions
 
 
-def aggregate_logs(run_directory: str, containers: list[Container]) -> str:
-    """Retrieve logs for containers in a list, aggregating to a single log file."""
-    log_file = str(Path(run_directory) / "transformed/logs.txt")
-    with open(log_file, "w") as file:
-        for container in containers:
-            file.write(f"container: {container.id}\n")
-            descriptors = (
-                f"docker_image: {container.labels['docker_image']} | "
-                f"source: {container.labels['source']} | "
-                f"input_file: {container.labels['input_file']}\n"
-            )
-            file.write(descriptors)
-            file.write(container.logs().decode())
-            file.write("\n\n")
-    return log_file
+def write_log_file(run_directory: str, input_file: str, container: Container) -> None:
+    """Write logs for a given container to a text file."""
+    filename_details = parse_timdex_filename(input_file)
+    log_filename = "{source}-{run_date}-{run_type}-{container_id}-logs.txt".format(
+        source=filename_details["source"],
+        run_date=filename_details["run-date"],
+        run_type=filename_details["run-type"],
+        container_id=container.short_id,
+    )
+    log_filepath = str(Path(run_directory) / "logs" / log_filename)
+    header = (
+        f"docker_image: {container.labels['docker_image']} | "
+        f"source: {container.labels['source']} | "
+        f"input_file: {container.labels['input_file']}"
+    )
+    container_desc = f"container: {container.id}"
+    with open(log_filepath, "w") as file:
+        file.write(header + "\n")
+        file.write(container_desc + "\n")
+        for log in container.logs(stream=True):
+            file.write(log.decode())
 
 
 def get_transformed_files(run_directory: str) -> tuple[list[str], ...]:

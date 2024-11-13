@@ -188,10 +188,15 @@ Usage: -c run-diff [OPTIONS]
 
 Options:
   -d, --job-directory TEXT  Job directory to create.  [required]
-  -i, --input-files TEXT    Input files to transform.  This may be a comma
+  -i, --input-files TEXT    Input files to transform. This may be a comma
                             separated list of input files, or a local CSV file
                             that provides a list of files.  [required]
   -m, --message TEXT        Message to describe Run.
+  --download-files          Pass to download input files (or use previously
+                            downloaded input files) from AWS S3. The
+                            downloaded files are stored in a local MinIO S3
+                            server and made available for Transmogrifier to
+                            use.
   -h, --help                Show this message and exit.
 ```
 
