@@ -886,19 +886,20 @@
                 "s3"
             ],
             "hashes": [
-                "sha256:17519739590614d50a4bfb82d10e02a9bf324ab87e90d54ecddf68044ba219b7",
-                "sha256:ecf6cce737abc9bc212d48238021ff4aa3fb20ed887ecdee72a750bd329c902e"
+                "sha256:9ea35493aa42ddf0c606a69228752d8aee55b15ecd41454132e3ee42aae3c691",
+                "sha256:f68da8257406f247e5e34addd0c98374183f5a0d3408cf5092ec7460dea91812"
             ],
+            "index": "pypi",
             "markers": "python_version >= '3.8'",
-            "version": "==1.35.54"
+            "version": "==1.35.61"
         },
         "botocore-stubs": {
             "hashes": [
-                "sha256:26ba65907eed959dddc644ab1cd72e3a2cc9761dad79e0b45ff3b8676c47e5ec",
-                "sha256:49e28813324308bfc5a92bde118df5c9c41a01237eef1e1628891770f3f68a94"
+                "sha256:6f5a1a5ae79b36776a100745d4c73e94f04e62a2ba64fdf65b9e6b5cf51d21a8",
+                "sha256:f2602ff94f986b7a97a17075b1f87ec22723ab27b02df83ea8f81a3a6c3bfc00"
             ],
             "markers": "python_version >= '3.8'",
-            "version": "==1.35.54"
+            "version": "==1.35.61"
         },
         "certifi": {
             "hashes": [
