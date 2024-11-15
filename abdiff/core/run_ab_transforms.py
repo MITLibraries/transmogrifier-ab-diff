@@ -40,18 +40,11 @@ def run_ab_transforms(
 ) -> tuple[list[str], ...]:
     """Run Docker containers with versioned images of Transmogrifier.
 
-    The following steps are performed in sequential order:
-        1. Directories are created to capture the transformed files.
-        2. For all input files, an A and B version of Transmogrifier is run.
-        3. Wait for all containers to complete.
-        4. Aggregate logs from all containers.
-        5. Validate output.
-        6. Update run.json with lists describing input and transformed files.
-        7. Return a tuple containing two lists representing all A and B transformed files.
-
     Parallelization is handled by invoking the Docker containers via threads, limited by
     the ThreadPoolExecutor.max_workers argument.  Each thread invokes a detached Docker
-    container and manages its lifecycle until completion.
+    container and manages its lifecycle until completion. As each container exits, logs
+    are written to a text file in the run directory; log filenames follow the format:
+    "{source}-{run-date}-{run-type}-{container-short-id}-logs.txt".
 
     Args:
         run_directory (str): Run directory.
@@ -247,6 +240,14 @@ def run_docker_container(
                 exception = DockerContainerTimeoutError(
                     container_id=container.id, timeout=timeout
                 )
+                write_log_file(
+                    run_directory,
+                    input_file,
+                    container,
+                    extra_messages=[
+                        f"Transmogrifier container ({container.short_id}) TIMED OUT"
+                    ],
+                )
                 break
 
     except Exception as e:
@@ -283,7 +284,12 @@ def collect_container_results(futures: list[Future]) -> list[Exception]:
     return exceptions
 
 
-def write_log_file(run_directory: str, input_file: str, container: Container) -> None:
+def write_log_file(
+    run_directory: str,
+    input_file: str,
+    container: Container,
+    extra_messages: list[str] | None = None,
+) -> None:
     """Write logs for a given container to a text file."""
     filename_details = parse_timdex_filename(input_file)
     log_filename = "{source}-{run_date}-{run_type}-{container_id}-logs.txt".format(
@@ -304,6 +310,9 @@ def write_log_file(run_directory: str, input_file: str, container: Container) ->
         file.write(container_desc + "\n")
         for log in container.logs(stream=True):
             file.write(log.decode())
+
+        if extra_messages:
+            file.write("\n".join(extra_messages))
 
 
 def get_transformed_files(run_directory: str) -> tuple[list[str], ...]:

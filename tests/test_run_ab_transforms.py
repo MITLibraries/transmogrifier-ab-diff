@@ -134,17 +134,17 @@ def test_run_docker_container_success(
 
 
 def test_run_docker_container_timeout_triggered(
-    mocked_docker_client, mocked_docker_container_a
+    run_directory, mocked_docker_client, mocked_docker_container_a
 ):
     mocked_docker_client.containers.run.return_value = mocked_docker_container_a
     mocked_docker_container_a.run_duration = 2
     timeout = 1
     _, exception = run_docker_container(
         "abc123",
-        "run",
+        run_directory,
         "abc",
         "alma",
-        "/tmp/input.xml",
+        "/tmp/source-2024-01-01-full-extracted-records-to-index.xml",
         "/tmp/output.json",
         mocked_docker_client,
         timeout=timeout,
@@ -163,7 +163,7 @@ def test_run_docker_container_timeout_not_triggered(
         "run",
         "abc",
         "alma",
-        "/tmp/input.xml",
+        "/tmp/source-2024-01-01-full-extracted-records-to-index.xml",
         "/tmp/output.json",
         mocked_docker_client,
         timeout=timeout,

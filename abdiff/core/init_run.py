@@ -24,6 +24,7 @@ def init_run(
     os.makedirs(run_directory)
     os.makedirs(logs_directory)
     logger.info(f"Run directory created: {run_directory}")
+    logger.info(f"Logs directory created: {logs_directory}")
 
     # clone job data and update with run information
     run_data = read_job_json(job_directory)
