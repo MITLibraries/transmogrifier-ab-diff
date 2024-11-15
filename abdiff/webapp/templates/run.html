@@ -21,10 +21,27 @@
     </div>
 
     <div class="row">
-        <h3 data-bs-toggle="collapse" data-bs-target="#collapseLogs" role="button" aria-expanded="false" aria-controls="collapseLogs">Transform Logs ⤵</h3>
-        <div class="collapse" id="collapseLogs">
-            <pre><code>{{transform_logs}}</code></pre>
-        </div>
+        <h3>Transform Logs</h3>
+        {% if transform_logs %}
+            <table id="transformLogsTable" class="table">
+                <thead>
+                    <tr>
+                        <th>Transform Log Filename</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for log_filename in transform_logs %}
+                    <tr>
+                        <td>{{log_filename}}</td>
+                        <td><a href="/run/{{run_timestamp}}/log/{{log_filename}}" target="blank">View Log</a></td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        {% else %}
+            <span>No transform logs were found.</span>
+        {% endif %}
     </div>
 
     <div class="row">
@@ -90,6 +107,9 @@
     </script>
     <script src="{{ url_for('static', filename='jquery-3.6.0.min.js') }}"></script>
     <script src="{{ url_for('static', filename='jquery.dataTables.min.js') }}"></script>
+    <script>
+        new DataTable('#transformLogsTable');
+    </script>
     <script>
     $(document).ready(function() {
         var table = $('#recordsTable').DataTable( {
