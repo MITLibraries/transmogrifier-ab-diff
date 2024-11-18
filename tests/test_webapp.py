@@ -56,16 +56,12 @@ def test_run_route_load_transformation_logs(
         _response = webapp_client.get(f"/run/{webapp_run_timestamp}")
     args, kwargs = mock_render.call_args
 
-    assert (
-        "docker_image: transmogrifier-best-job-008e20c:latest | source: alma | "
-        "input_file: s3://timdex-extract-prod-300442551476/alma/alma-2024-08-29-daily"
-        "-extracted-records-to-index.xml" in kwargs["transform_logs"]
-    )
-    assert (
-        "docker_image: transmogrifier-best-job-395e612:latest | source: alma | "
-        "input_file: s3://timdex-extract-prod-300442551476/alma/alma-2024-08-29-daily"
-        "-extracted-records-to-index.xml" in kwargs["transform_logs"]
-    )
+    assert set(kwargs["transform_logs"]) == {
+        "alma-2024-08-29-daily-aaaaaa123456-logs.txt",
+        "alma-2024-08-29-daily-bbbbbb123456-logs.txt",
+        "dspace-2024-10-14-daily-cccccc123456-logs.txt",
+        "dspace-2024-10-14-daily-dddddd123456-logs.txt",
+    }
 
 
 def test_shutdown_route_success(caplog, webapp_client):

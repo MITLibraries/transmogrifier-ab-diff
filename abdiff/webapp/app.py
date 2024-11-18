@@ -82,15 +82,15 @@ def create_app() -> Flask:
         run_directory = get_run_directory(run_timestamp)
         run_data = read_run_json(run_directory)
 
-        # load transform logs
-        try:
-            with open(Path(run_directory) / "transformed/logs.txt") as f:
-                transform_logs = f.read()
-        except FileNotFoundError:
-            transform_logs = "'logs.txt' not found for transform logs"
+        # get filenames of transform logs
+        transform_logs = [
+            os.path.basename(log_filepath)
+            for log_filepath in glob.glob(f"{run_directory}/logs/*")
+        ]
 
         return render_template(
             "run.html",
+            run_timestamp=run_timestamp,
             run_data=run_data,
             run_json=json.dumps(run_data),
             transform_logs=transform_logs,
@@ -98,6 +98,17 @@ def create_app() -> Flask:
             sources=sorted(run_data["metrics"]["summary"]["sources"]),
             modified_fields=sorted(run_data["metrics"]["summary"]["fields_with_diffs"]),
         )
+
+    @app.route("/run/<run_timestamp>/log/<log_filename>")
+    def transform_log(run_timestamp: str, log_filename: str) -> Response:
+        run_directory = get_run_directory(run_timestamp)
+
+        try:
+            with open(Path(run_directory) / "logs" / log_filename) as f:
+                transform_logs = f.read()
+        except FileNotFoundError:
+            transform_logs = f"Log file '{log_filename}' not found."
+        return Response(transform_logs, mimetype="text/plain")
 
     @app.route("/run/<run_timestamp>/records/data", methods=["POST"])
     def records_data(run_timestamp: str) -> Response:
