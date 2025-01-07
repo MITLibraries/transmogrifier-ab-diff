@@ -153,6 +153,11 @@ def job_directory(tmp_path):
 
 
 @pytest.fixture
+def default_transmogrifier_location():
+    return "https://github.com/MITLibraries/transmogrifier.git"
+
+
+@pytest.fixture
 def example_job_directory(tmp_path):
     """Copy example job from fixtures to tmp path where it will be modified during test"""
     source_dir = Path("tests/fixtures/jobs/example-job-1")

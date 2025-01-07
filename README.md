@@ -171,8 +171,10 @@ Usage: -c init-job [OPTIONS]
 Options:
   -d, --job-directory TEXT  Job directory to create.  [required]
   -m, --message TEXT        Message to describe Job.
+  -la, --location-a TEXT    Location to clone Transmogrifier version 'A'
   -a, --commit-sha-a TEXT   Transmogrifier commit SHA for version 'A'
                             [required]
+  -lb, --location-b TEXT    Location to clone Transmogrifier version 'B'
   -b, --commit-sha-b TEXT   Transmogrifier commit SHA for version 'B'
                             [required]
   -h, --help                Show this message and exit.

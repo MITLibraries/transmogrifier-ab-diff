@@ -89,11 +89,27 @@ def ping() -> None:
     default="Not provided.",
 )
 @click.option(
+    "-la",
+    "--location-a",
+    type=str,
+    required=False,
+    default="https://github.com/MITLibraries/transmogrifier.git",
+    help="Location to clone Transmogrifier version 'A'",
+)
+@click.option(
     "-a",
     "--commit-sha-a",
     type=str,
     required=True,
     help="Transmogrifier commit SHA for version 'A'",
+)
+@click.option(
+    "-lb",
+    "--location-b",
+    type=str,
+    required=False,
+    default="https://github.com/MITLibraries/transmogrifier.git",
+    help="Location to clone Transmogrifier version 'B'",
 )
 @click.option(
     "-b",
@@ -106,7 +122,9 @@ def init_job(
     job_directory: str,
     message: str,
     commit_sha_a: str,
+    location_a: str,
     commit_sha_b: str,
+    location_b: str,
 ) -> None:
     """Initialize a new Job."""
     try:
@@ -119,7 +137,9 @@ def init_job(
 
     build_ab_images(
         job_directory,
+        location_a,
         commit_sha_a,
+        location_b,
         commit_sha_b,
     )
 
