@@ -179,7 +179,7 @@ def run_diff(
     if download_files:
         download_input_files(input_files_list)
 
-    ab_transformed_file_lists = run_ab_transforms(
+    ab_transformed_datasets = run_ab_transforms(
         run_directory=run_directory,
         image_tag_a=job_data["image_tag_a"],
         image_tag_b=job_data["image_tag_b"],
@@ -189,7 +189,7 @@ def run_diff(
 
     collated_dataset_path = collate_ab_transforms(
         run_directory=run_directory,
-        ab_transformed_file_lists=ab_transformed_file_lists,
+        ab_transformed_datasets=ab_transformed_datasets,
     )
 
     diffs_dataset_path = calc_ab_diffs(

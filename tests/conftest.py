@@ -22,10 +22,6 @@ from abdiff.core.calc_ab_metrics import (
     _prepare_duckdb_context,
     calc_ab_metrics,
 )
-from abdiff.core.collate_ab_transforms import (
-    TRANSFORMED_DATASET_SCHEMA,
-    get_transformed_batches_iter,
-)
 from abdiff.core.utils import create_subdirectories, load_dataset, write_to_dataset
 
 
@@ -86,13 +82,13 @@ class MockedContainerRun:
         transformed_directory_a, transformed_directory_b = transformed_directories
         self.count += 1
         if self.count == 1:
-            return self.create_transformed_files(
+            return self.create_transformed_dataset(
                 transformed_directory=transformed_directory_a,
                 container_id="abc123",
                 image_name="transmogrifier-example-job-1-abc123:latest",
             )
         if self.count == 2:  # noqa: PLR2004
-            return self.create_transformed_files(
+            return self.create_transformed_dataset(
                 transformed_directory=transformed_directory_b,
                 container_id="def456",
                 image_name="transmogrifier-example-job-1-def456:latest",
@@ -100,15 +96,13 @@ class MockedContainerRun:
         warnings.warn("All side effects are exhausted.", UserWarning, stacklevel=2)
         return None
 
-    def create_transformed_files(
+    def create_transformed_dataset(
         self, transformed_directory: str, container_id: str, image_name: str
     ) -> Container:
-        with open(
-            Path(transformed_directory)
-            / "source-2024-01-01-daily-transformed-records-to-index.json",
-            "w",
-        ) as tmp_file:
-            tmp_file.write("Hello world!")
+        shutil.copytree(
+            "tests/fixtures/transmogrifier/dataset",
+            Path(transformed_directory) / "dataset",
+        )
 
         if self.errors:
             return Container(
@@ -178,26 +172,6 @@ def example_transformed_directory(example_run_directory):
 
 
 @pytest.fixture
-def example_ab_transformed_file_lists():
-    transformed_directory_a = Path("transformed/a")
-    transformed_directory_b = Path("transformed/b")
-    return (
-        [
-            transformed_directory_a
-            / "alma-2024-08-29-daily-transformed-records-to-index.json",
-            transformed_directory_a
-            / "dspace-2024-10-14-daily-transformed-records-to-index.json",
-        ],
-        [
-            transformed_directory_b
-            / "alma-2024-08-29-daily-transformed-records-to-index.json",
-            transformed_directory_b
-            / "dspace-2024-10-14-daily-transformed-records-to-index.json",
-        ],
-    )
-
-
-@pytest.fixture
 def job(job_directory):
     return init_job(job_directory)
 
@@ -233,18 +207,11 @@ def create_transformed_directories(run_directory):
 
 
 @pytest.fixture
-def transformed_parquet_dataset(
-    tmp_path, example_run_directory, example_ab_transformed_file_lists
-):
-    write_to_dataset(
-        get_transformed_batches_iter(
-            example_run_directory, example_ab_transformed_file_lists
-        ),
-        schema=TRANSFORMED_DATASET_SCHEMA,
-        base_dir=tmp_path,
-        partition_columns=["transformed_file_name"],
-    )
-    return tmp_path
+def ab_transformed_datasets(tmp_path, example_run_directory) -> list[str]:
+    return [
+        f"{example_run_directory}/transformed/a",
+        f"{example_run_directory}/transformed/b",
+    ]
 
 
 @pytest.fixture
@@ -547,29 +514,6 @@ def final_records_dataset_path(
         diffs_dataset_path=diffs_dataset_directory,
         metrics_dataset_path=diff_matrix_dataset_filepath,
     )
-
-
-@pytest.fixture
-def collating_intermediate_transformed_dataset(run_directory, tmp_path):
-    shutil.copytree(
-        "tests/fixtures/collating/sample_scenarios/transformed",
-        Path(run_directory) / "transformed",
-    )
-    ab_transformed_file_lists = [
-        [
-            file.removeprefix(run_directory + "/")
-            for file in glob.glob(f"{run_directory}/transformed/{version}/*.*")
-        ]
-        for version in ["a", "b"]
-    ]
-    transformed_dataset_filepath = tmp_path / "transformed_dataset"
-    write_to_dataset(
-        get_transformed_batches_iter(run_directory, tuple(ab_transformed_file_lists)),
-        schema=TRANSFORMED_DATASET_SCHEMA,
-        base_dir=transformed_dataset_filepath,
-        partition_columns=["transformed_file_name"],
-    )
-    return transformed_dataset_filepath
 
 
 @pytest.fixture

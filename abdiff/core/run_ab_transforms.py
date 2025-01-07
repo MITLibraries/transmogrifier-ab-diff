@@ -1,9 +1,9 @@
 """abdiff.core.run_ab_transforms"""
 
-import glob
 import logging
 import os
 import time
+import uuid
 from concurrent.futures import Future, ThreadPoolExecutor
 from datetime import timedelta
 from pathlib import Path
@@ -16,11 +16,11 @@ from abdiff.config import Config
 from abdiff.core.exceptions import (
     DockerContainerRuntimeError,
     DockerContainerTimeoutError,
-    OutputValidationError,
 )
 from abdiff.core.utils import (
     create_subdirectories,
     parse_timdex_filename,
+    read_run_json,
     update_or_create_run_json,
 )
 
@@ -37,48 +37,14 @@ def run_ab_transforms(
     docker_client: docker.client.DockerClient | None = None,
     *,
     use_local_s3: bool = False,
-) -> tuple[list[str], ...]:
-    """Run Docker containers with versioned images of Transmogrifier.
+) -> list[str]:
+    """Generate transformed records from A and B versions of Transmogrifier.
 
-    Parallelization is handled by invoking the Docker containers via threads, limited by
-    the ThreadPoolExecutor.max_workers argument.  Each thread invokes a detached Docker
-    container and manages its lifecycle until completion. As each container exits, logs
-    are written to a text file in the run directory; log filenames follow the format:
-    "{source}-{run-date}-{run-type}-{container-short-id}-logs.txt".
-
-    Args:
-        run_directory (str): Run directory.
-        image_tag_a (str): Image name for version A of transmogrifier.
-        image_tag_b (str): Image name for version B of transmogrifier.
-        input_files (list[str]): Input files for transform. Currently, only
-            URIs for input files on S3 are accepted.
-        docker_client (docker.client.DockerClient | None, optional): Docker client.
-            Defaults to None.
-        use_local_s3 (bool): Boolean indicating whether the container should
-            access input files from a local MinIO server (i.e., "local S3 bucket")
-            or from AWS S3. This flag determines the appropriate environment variables
-            to set for the Docker containers. Default is False.
-
-    Returns:
-        tuple[list[str], ...]: A tuple containing two lists, where each list contains
-            the filepaths to transformed files (relative to the run directory) generated
-            by each version (A and B) of transmogrifier.
-
-    Examples:
-        (
-            [
-                "transformed/a/source-2024-01-01-daily-transformed-records-to-index.json",
-                "transformed/a/source-2024-01-02-daily-transformed-records-to-index.json"
-            ],
-            [
-                "transformed/b/source-2024-01-01-daily-transformed-records-to-index.json",
-                "transformed/b/source-2024-01-02-daily-transformed-records-to-index.json"
-            ]
-        )
+    Transformed records are written to a TIMDEX dataset, which are collated into a single
+    dataset in later steps.
     """
     start_time = perf_counter()
 
-    # initialize environment
     if not docker_client:
         docker_client = docker.from_env()
 
@@ -97,12 +63,13 @@ def run_ab_transforms(
 
     # run containers and collect results
     futures = run_all_docker_containers(
-        docker_client, input_files, run_configs, run_directory, use_local_s3=use_local_s3
+        docker_client,
+        input_files,
+        run_configs,
+        run_directory,
+        use_local_s3=use_local_s3,
     )
     exceptions = collect_container_results(futures)
-    logger.info(
-        f"Successful containers: {len(futures)}, failed containers: {len(exceptions)}"
-    )
 
     # process results
     if not CONFIG.allow_failed_transmogrifier_containers and exceptions:
@@ -110,20 +77,18 @@ def run_ab_transforms(
             f"{len(exceptions)} / {len(futures)} containers failed "
             "to complete successfully."
         )
-    ab_transformed_file_lists = get_transformed_files(run_directory)
-    validate_output(ab_transformed_file_lists, input_files)
 
     # write and return results
     run_data = {
         "input_files": input_files,
-        "transformed_files": ab_transformed_file_lists,
+        "transformed_datasets": [transformed_directory_a, transformed_directory_b],
     }
     update_or_create_run_json(run_directory, run_data)
     elapsed_time = perf_counter() - start_time
     logger.info(
         "Total time to complete process: %s", str(timedelta(seconds=elapsed_time))
     )
-    return ab_transformed_file_lists
+    return [transformed_directory_a, transformed_directory_b]
 
 
 def run_all_docker_containers(
@@ -147,7 +112,6 @@ def run_all_docker_containers(
     with ThreadPoolExecutor(max_workers=CONFIG.transmogrifier_max_workers) as executor:
         for input_file in input_files:
             filename_details = parse_timdex_filename(input_file)
-            output_file = get_transformed_filename(filename_details)
             for docker_image, transformed_directory in run_configs:
                 args = (
                     docker_image,
@@ -155,7 +119,6 @@ def run_all_docker_containers(
                     transformed_directory,
                     str(filename_details["source"]),
                     input_file,
-                    output_file,
                     docker_client,
                 )
                 tasks.append(
@@ -174,7 +137,6 @@ def run_docker_container(
     transformed_directory: str,
     source: str,
     input_file: str,
-    output_file: str,
     docker_client: docker.client.DockerClient,
     timeout: int = CONFIG.transmogrifier_timeout,
     *,
@@ -185,25 +147,41 @@ def run_docker_container(
     The container is run in a detached state to capture a container handle for later use
     but this function waits for the container to exit before returning.
     """
+    # ensures all records written share the same run_id
+    try:
+        run_id = read_run_json(run_directory)["run_timestamp"]
+    except FileNotFoundError:
+        logger.warning("Run JSON not found, probably testing, minting unique run UUID.")
+        run_id = str(uuid.uuid4())
+
+    environment_variables = {
+        "ETL_VERSION": "2",
+    }
+
     if use_local_s3:
-        environment_variables = {
-            "AWS_ENDPOINT_URL": CONFIG.minio_s3_container_url,
-            "AWS_ACCESS_KEY_ID": CONFIG.minio_root_user,
-            "AWS_SECRET_ACCESS_KEY": CONFIG.minio_root_password,
-        }
+        environment_variables.update(
+            {
+                "AWS_ENDPOINT_URL": CONFIG.minio_s3_container_url,
+                "AWS_ACCESS_KEY_ID": CONFIG.minio_root_user,
+                "AWS_SECRET_ACCESS_KEY": CONFIG.minio_root_password,
+            }
+        )
     else:
-        environment_variables = {
-            "AWS_ACCESS_KEY_ID": CONFIG.AWS_ACCESS_KEY_ID,
-            "AWS_SECRET_ACCESS_KEY": CONFIG.AWS_SECRET_ACCESS_KEY,
-            "AWS_SESSION_TOKEN": CONFIG.AWS_SESSION_TOKEN,
-        }
+        environment_variables.update(
+            {
+                "AWS_ACCESS_KEY_ID": CONFIG.AWS_ACCESS_KEY_ID,
+                "AWS_SECRET_ACCESS_KEY": CONFIG.AWS_SECRET_ACCESS_KEY,
+                "AWS_SESSION_TOKEN": CONFIG.AWS_SESSION_TOKEN,
+            }
+        )
 
     container = docker_client.containers.run(
         docker_image,
         command=[
             f"--input-file={input_file}",
-            f"--output-file=/tmp/{output_file}",
+            f"--output-location=/tmp/{transformed_directory}/dataset",
             f"--source={source}",
+            f"--run-id={run_id}",
         ],
         detach=True,
         environment=environment_variables,
@@ -212,7 +190,9 @@ def run_docker_container(
             "source": source,
             "input_file": input_file,
         },
-        volumes=[f"{os.path.abspath(transformed_directory)}:/tmp"],
+        volumes=[
+            f"{os.path.abspath(transformed_directory)}:/tmp/{transformed_directory}"
+        ],
     )
     logger.info(f"Transmogrifier container ({container.short_id}) STARTED: {input_file}")
 
@@ -313,73 +293,3 @@ def write_log_file(
 
         if extra_messages:
             file.write("\n".join(extra_messages))
-
-
-def get_transformed_files(run_directory: str) -> tuple[list[str], ...]:
-    """Get list of filepaths to transformed JSON files.
-
-    Args:
-        run_directory (str): Run directory.
-
-    Returns:
-        tuple[list[str]]: Tuple containing lists of paths to transformed
-            JSON and TXT (deletions) files for each image, relative to 'run_directory'.
-    """
-    ordered_files = []
-    for version in ["a", "b"]:
-        absolute_filepaths = glob.glob(f"{run_directory}/transformed/{version}/*")
-        relative_filepaths = [
-            os.path.relpath(file, run_directory) for file in absolute_filepaths
-        ]
-        ordered_files.append(relative_filepaths)
-    return tuple(ordered_files)
-
-
-def validate_output(
-    ab_transformed_file_lists: tuple[list[str], ...], input_files: list[str]
-) -> None:
-    """Validate the output of run_ab_transforms.
-
-    Transmogrifier produces JSON files for records that need indexing, and TXT files for
-    records that need deletion.  Every run of Transmogrifier should produce one OR both of
-    these.  Some TIMDEX sources provide one file to Transmogrifier that contains both
-    records to index and delete, and others provide separate files for each.
-
-    The net effect for validation is that, given an input file, we should expect to see
-    1+ files in the A and B output for that input file, ignoring if it's records to index
-    or delete.
-    """
-    for input_file in input_files:
-        file_parts = parse_timdex_filename(input_file)
-        logger.debug(f"Validating output for input file root: {file_parts}")
-
-        file_found = False
-        for version_files in ab_transformed_file_lists:
-            for version_file in version_files:
-                if (
-                    file_parts["source"] in version_file  # type: ignore[operator]
-                    and file_parts["run-date"] in version_file  # type: ignore[operator]
-                    and file_parts["run-type"] in version_file  # type: ignore[operator]
-                    and (not file_parts["index"] or file_parts["index"] in version_file)
-                ):
-                    file_found = True
-                    break
-
-        if not file_found:
-            raise OutputValidationError(  # noqa: TRY003
-                f"Transmogrifier output was not found for input file '{input_file}'"
-            )
-
-
-def get_transformed_filename(filename_details: dict) -> str:
-    """Get transformed filename using extract filename details."""
-    return (
-        "{source}-{run_date}-{run_type}-{stage}-records-to-{action}{index}.json".format(
-            source=filename_details["source"],
-            run_date=filename_details["run-date"],
-            run_type=filename_details["run-type"],
-            stage="transformed",
-            index=f"_{sequence}" if (sequence := filename_details["index"]) else "",
-            action=filename_details["action"],
-        )
-    )

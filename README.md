@@ -103,13 +103,9 @@ output/mvp
         ├── run.json
         └── transformed
             ├── a
-            │   ├── alma-2023-02-19-daily-transformed-records-to-index.json
-            │   ├── dspace-2024-10-11-daily-transformed-records-to-index.json
-            │   └── libguides-2024-04-03-full-transformed-records-to-index.json
+            │   └── dataset <parquet dataset from Transmogrifier>
             ├── b
-            │   ├── alma-2023-02-19-daily-transformed-records-to-index.json
-            │   ├── dspace-2024-10-11-daily-transformed-records-to-index.json
-            │   └── libguides-2024-04-03-full-transformed-records-to-index.json
+            │   └── dataset <parquet dataset from Transmogrifier>
             └── logs.txt
 ```
 
