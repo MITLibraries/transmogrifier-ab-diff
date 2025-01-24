@@ -24,6 +24,6 @@ repos:
         types: ["python"]
       - id: safety
         name: safety
-        entry: pipenv check --ignore 70612
+        entry: pipenv check
         language: system
         pass_filenames: false

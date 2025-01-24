@@ -1,4 +1,5 @@
 # ruff: noqa: PD901
+import contextlib
 import datetime
 import glob
 import json
@@ -140,6 +141,8 @@ class MockedFutureSuccess(Future):
 def _test_env(monkeypatch, tmp_path):
     monkeypatch.setenv("WORKSPACE", "test")
     monkeypatch.setenv("JOB_DIRECTORY", "tests/fixtures/jobs/example-job-1")
+    with contextlib.suppress(KeyError):
+        monkeypatch.delenv("ALLOW_FAILED_TRANSMOGRIFIER_CONTAINERS")
 
 
 @pytest.fixture
