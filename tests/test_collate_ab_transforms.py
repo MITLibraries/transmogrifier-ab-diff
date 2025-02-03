@@ -12,42 +12,33 @@ import pytest
 
 from abdiff.core.collate_ab_transforms import (
     COLLATED_DATASET_SCHEMA,
-    READ_BATCH_SIZE,
-    TRANSFORMED_DATASET_SCHEMA,
     collate_ab_transforms,
     get_deduped_batches_iter,
     get_joined_batches_iter,
     get_transform_version,
-    get_transformed_batches_iter,
-    get_transformed_records_iter,
     validate_output,
 )
 from abdiff.core.exceptions import OutputValidationError
 from abdiff.core.utils import write_to_dataset
 
 
-def test_collate_ab_transforms_success(
-    example_run_directory, example_ab_transformed_file_lists
-):
+def test_collate_ab_transforms_success(example_run_directory, ab_transformed_datasets):
     """Validates the output of collate_ab_transforms.
 
     This test performs assertions on the returned output of the function
     and the resulting collated parquet dataset.
 
-    For purposes of testing, the function is called on two (2) transformed
-    JSON files (used to create the 'transformed_parquet_dataset' fixture).
-    These JSON files were manually edited such that:
-        * The example 'DSpace@MIT' transformed JSON file only contains
-          five (5) records.
-        * The example 'MIT Alma' transformed JSON file contains five records
-          in version A but only four (4) records in version B. The reason for
+    For purposes of testing, the function is called on two transformed datasets.  These
+    datasets were manually edited such that:
+        * Where source='dspace', only 5 records for A and B.
+        * Where source='alma', A has 5 records but B only has 4 records. The reason for
           omitting one record is to verify that the full outer join is working
           as expected, as evidenced by the final parquet dataset containing
           10 records.
     """
     collated_dataset_path = collate_ab_transforms(
         run_directory=example_run_directory,
-        ab_transformed_file_lists=example_ab_transformed_file_lists,
+        ab_transformed_datasets=ab_transformed_datasets,
     )
     assert collated_dataset_path == str(Path(example_run_directory) / "collated")
 
@@ -66,62 +57,13 @@ def test_collate_ab_transforms_success(
     assert missing_in_b["source"].to_list() == ["alma"]
 
 
-def test_get_transformed_records_iter_success(example_transformed_directory):
-    """Validates the structure of the yielded TIMDEX record dictionaries."""
-    records_iter = get_transformed_records_iter(
-        transformed_file=str(
-            Path(example_transformed_directory)
-            / "a/alma-2024-08-29-daily-transformed-records-to-index.json"
-        )
-    )
-    timdex_record_dict = next(records_iter)
-
-    assert set(timdex_record_dict.keys()) == {
-        "timdex_record_id",
-        "source",
-        "run_date",
-        "run_type",
-        "action",
-        "record",
-        "version",
-        "transformed_file_name",
-    }
-    assert isinstance(timdex_record_dict["record"], bytes)
-    assert timdex_record_dict["version"] == "a"
-    assert (
-        timdex_record_dict["transformed_file_name"]
-        == "alma-2024-08-29-daily-transformed-records-to-index.json"
-    )
-
-
-def test_get_transformed_batches_iter_success(
-    example_run_directory, example_ab_transformed_file_lists
-):
-    transformed_batches_iter = get_transformed_batches_iter(
-        run_directory=example_run_directory,
-        ab_transformed_file_lists=example_ab_transformed_file_lists,
-    )
-    transformed_batch = next(transformed_batches_iter)
-
-    assert isinstance(transformed_batch, pa.RecordBatch)
-    assert transformed_batch.num_rows <= READ_BATCH_SIZE
-    assert set(transformed_batch.schema.names) == set(TRANSFORMED_DATASET_SCHEMA.names)
-
-
-def test_get_joined_batches_iter_success(transformed_parquet_dataset):
-    """Validates the structure of the joined A/B TIMDEX record dictionaries.
-
-    The function yields pyarrow.RecordBatch objects per transformed file.
-    Given that the fixture 'transformed_parquet_dataset' collates
-    two (2) transformed JSON files, this test asserts that two
-    batches are yielded by the function. This test also performs
-    assertions on the structure of a single pyarrow.RecordBatch.
-    """
-    joined_batches_iter = get_joined_batches_iter(transformed_parquet_dataset)
+def test_get_joined_batches_iter_success(ab_transformed_datasets):
+    """Validates the structure of the joined A/B TIMDEX record dictionaries."""
+    joined_batches_iter = get_joined_batches_iter(ab_transformed_datasets)
     joined_batches = list(joined_batches_iter)
     max_rows_per_file = 100_000
 
-    assert len(joined_batches) == 2
+    assert len(joined_batches) == 1
 
     joined_batch = joined_batches[0]
     assert isinstance(joined_batch, pa.RecordBatch)
@@ -217,14 +159,11 @@ def test_get_transform_version_raise_error():
 @pytest.mark.parametrize(
     ("timdex_record_id", "action", "record_a_type", "record_b_type"),
     [
-        ("libguides:1", "index", type(None), bytes),  # missing from A
-        ("libguides:3", "index", bytes, type(None)),  # missing from B
-        ("libguides:99", "delete", type(None), type(None)),  # missing from A
-        ("libguides:4", "delete", type(None), type(None)),  # missing from B
+        ("alma:9935736551006761", "index", bytes, type(None)),  # missing from B
     ],
 )
 def test_joining_dataset_handles_missing_records_success(
-    collating_intermediate_transformed_dataset,
+    ab_transformed_datasets,
     timdex_record_id,
     action,
     record_a_type,
@@ -233,7 +172,7 @@ def test_joining_dataset_handles_missing_records_success(
     """This test asserts that, for transformed or delete files, if a timdex_record_id
     exists in A or B, but is missing from the other, a value of 'None' is correctly
     found after the join."""
-    batches_iter = get_joined_batches_iter(collating_intermediate_transformed_dataset)
+    batches_iter = get_joined_batches_iter(ab_transformed_datasets)
 
     while True:
         df = next(batches_iter).to_pandas()

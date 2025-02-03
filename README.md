@@ -103,13 +103,9 @@ output/mvp
         ├── run.json
         └── transformed
             ├── a
-            │   ├── alma-2023-02-19-daily-transformed-records-to-index.json
-            │   ├── dspace-2024-10-11-daily-transformed-records-to-index.json
-            │   └── libguides-2024-04-03-full-transformed-records-to-index.json
+            │   └── dataset <parquet dataset from Transmogrifier>
             ├── b
-            │   ├── alma-2023-02-19-daily-transformed-records-to-index.json
-            │   ├── dspace-2024-10-11-daily-transformed-records-to-index.json
-            │   └── libguides-2024-04-03-full-transformed-records-to-index.json
+            │   └── dataset <parquet dataset from Transmogrifier>
             └── logs.txt
 ```
 
@@ -175,8 +171,10 @@ Usage: -c init-job [OPTIONS]
 Options:
   -d, --job-directory TEXT  Job directory to create.  [required]
   -m, --message TEXT        Message to describe Job.
+  -la, --location-a TEXT    Location to clone Transmogrifier version 'A'
   -a, --commit-sha-a TEXT   Transmogrifier commit SHA for version 'A'
                             [required]
+  -lb, --location-b TEXT    Location to clone Transmogrifier version 'B'
   -b, --commit-sha-b TEXT   Transmogrifier commit SHA for version 'B'
                             [required]
   -h, --help                Show this message and exit.

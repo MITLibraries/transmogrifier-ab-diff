@@ -14,13 +14,13 @@ from abdiff.core.run_ab_transforms import run_ab_transforms
 from abdiff.extras.minio.download_input_files import download_input_files
 
 __all__ = [
-    "init_job",
-    "init_run",
     "build_ab_images",
-    "download_input_files",
-    "run_ab_transforms",
-    "collate_ab_transforms",
     "calc_ab_diffs",
     "calc_ab_metrics",
+    "collate_ab_transforms",
     "create_final_records",
+    "download_input_files",
+    "init_job",
+    "init_run",
+    "run_ab_transforms",
 ]

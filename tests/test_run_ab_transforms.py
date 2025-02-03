@@ -7,15 +7,11 @@ import pytest
 
 from abdiff.core.exceptions import (
     DockerContainerTimeoutError,
-    OutputValidationError,
 )
 from abdiff.core.run_ab_transforms import (
     collect_container_results,
-    get_transformed_filename,
-    get_transformed_files,
     run_ab_transforms,
     run_docker_container,
-    validate_output,
     write_log_file,
 )
 from abdiff.core.utils import parse_timdex_filename
@@ -50,11 +46,8 @@ def test_run_ab_transforms_success(
 
     for transformed_directory in ["a", "b"]:
         assert os.path.exists(Path(run_directory) / "transformed" / transformed_directory)
-        assert os.path.isfile(
-            Path(run_directory)
-            / "transformed"
-            / transformed_directory
-            / "source-2024-01-01-daily-transformed-records-to-index.json"
+        assert os.path.exists(
+            Path(run_directory) / "transformed" / transformed_directory / "dataset"
         )
 
 
@@ -108,7 +101,7 @@ def test_run_docker_container_success(
         transformed_directory = transformed_directory_b
 
     mocked_docker_client.containers.run.side_effect = lambda *args, **kwargs: (
-        MockedContainerRun().create_transformed_files(
+        MockedContainerRun().create_transformed_dataset(
             transformed_directory=transformed_directory,
             container_id=mocked_docker_container.id,
             image_name=image_name,
@@ -123,13 +116,11 @@ def test_run_docker_container_success(
         transformed_directory=transformed_directory,
         source=filename_details["source"],
         input_file=input_file,
-        output_file=get_transformed_filename(filename_details),
         docker_client=mocked_docker_client,
     )
     assert container.id == mocked_docker_container.id
-    assert os.path.isfile(
-        Path(transformed_directory)
-        / "source-2024-01-01-daily-transformed-records-to-index.json"
+    assert os.path.exists(
+        Path(run_directory) / "transformed" / transformed_directory / "dataset"
     )
 
 
@@ -145,7 +136,6 @@ def test_run_docker_container_timeout_triggered(
         "abc",
         "alma",
         "/tmp/source-2024-01-01-full-extracted-records-to-index.xml",
-        "/tmp/output.json",
         mocked_docker_client,
         timeout=timeout,
     )
@@ -164,7 +154,6 @@ def test_run_docker_container_timeout_not_triggered(
         "abc",
         "alma",
         "/tmp/source-2024-01-01-full-extracted-records-to-index.xml",
-        "/tmp/output.json",
         mocked_docker_client,
         timeout=timeout,
     )
@@ -185,7 +174,6 @@ def test_run_docker_container_unhandled_error_still_returns_container_and_except
             "abc",
             "alma",
             "/tmp/input.xml",
-            "/tmp/output.json",
             mocked_docker_client,
         )
 
@@ -230,144 +218,4 @@ def test_write_log_file_success(run_directory, mocked_docker_container_a):
     )
     assert os.path.exists(
         Path(run_directory) / "logs/source-2024-01-01-daily-abc-logs.txt"
-    )
-
-
-def test_get_transformed_files_success(
-    run_directory, create_transformed_directories, output_filename
-):
-    transformed_directory_a, transformed_directory_b = create_transformed_directories
-    with open(
-        Path(transformed_directory_a) / output_filename,
-        "w",
-    ) as tmp_file_a, open(
-        Path(transformed_directory_b) / output_filename,
-        "w",
-    ) as tmp_file_b:
-        tmp_file_a.write("This is the transformed JSON file created by version A")
-        tmp_file_b.write("This is the transformed JSON file created by version B.")
-
-    assert get_transformed_files(run_directory) == (
-        [
-            "transformed/a/source-2024-01-01-full-transformed-records-to-index.json",
-        ],
-        [
-            "transformed/b/source-2024-01-01-full-transformed-records-to-index.json",
-        ],
-    )
-
-
-@pytest.mark.parametrize(
-    ("ab_files", "input_files"),
-    [
-        # single JSON from single file
-        (
-            (
-                ["dspace-2024-04-10-daily-extracted-records-to-index.json"],
-                ["dspace-2024-04-10-daily-extracted-records-to-index.json"],
-            ),
-            ["s3://X/dspace-2024-04-10-daily-extracted-records-to-index.xml"],
-        ),
-        # JSON and TXT from single file
-        (
-            (
-                [
-                    "dspace-2024-04-10-daily-extracted-records-to-index.json",
-                    "dspace-2024-04-10-daily-extracted-records-to-delete.txt",
-                ],
-                [
-                    "dspace-2024-04-10-daily-extracted-records-to-index.json",
-                    "dspace-2024-04-10-daily-extracted-records-to-delete.txt",
-                ],
-            ),
-            ["s3://X/dspace-2024-04-10-daily-extracted-records-to-index.xml"],
-        ),
-        # handles indexed files when multiple
-        (
-            (
-                ["alma-2024-04-10-daily-extracted-records-to-index_09.json"],
-                ["alma-2024-04-10-daily-extracted-records-to-index_09.json"],
-            ),
-            ["s3://X/alma-2024-04-10-daily-extracted-records-to-index_09.xml"],
-        ),
-        # handles deletes only for alma deletes
-        (
-            (
-                ["alma-2024-04-10-daily-extracted-records-to-delete.txt"],
-                ["alma-2024-04-10-daily-extracted-records-to-delete.txt"],
-            ),
-            ["s3://X/alma-2024-04-10-daily-extracted-records-to-delete.xml"],
-        ),
-    ],
-)
-def test_validate_output_success(ab_files, input_files):
-    assert (
-        validate_output(
-            ab_transformed_file_lists=ab_files,
-            input_files=input_files,
-        )
-        is None
-    )
-
-
-@pytest.mark.parametrize(
-    ("ab_files", "input_files"),
-    [
-        # nothing returned
-        (
-            ([], []),
-            ["s3://X/dspace-2024-04-10-daily-extracted-records-to-index.xml"],
-        ),
-        # output files don't have index, or wrong index, so not direct match
-        (
-            (
-                [
-                    "alma-2024-04-10-daily-extracted-records-to-index.json",
-                    "alma-2024-04-10-daily-extracted-records-to-index_04.json",
-                ],
-                [
-                    "alma-2024-04-10-daily-extracted-records-to-index.json",
-                    "alma-2024-04-10-daily-extracted-records-to-index_04.json",
-                ],
-            ),
-            ["s3://X/alma-2024-04-10-daily-extracted-records-to-index_09.xml"],
-        ),
-    ],
-)
-def test_validate_output_error(ab_files, input_files):
-    with pytest.raises(OutputValidationError):
-        validate_output(ab_transformed_file_lists=ab_files, input_files=input_files)
-
-
-def test_get_transformed_filename_success():
-    assert (
-        get_transformed_filename(
-            {
-                "source": "source",
-                "run-date": "2024-01-01",
-                "run-type": "full",
-                "stage": "extracted",
-                "action": "index",
-                "index": None,
-                "file_type": "json",
-            }
-        )
-        == "source-2024-01-01-full-transformed-records-to-index.json"
-    )
-
-
-def test_get_transformed_filename_indexed_success():
-    assert (
-        get_transformed_filename(
-            {
-                "source": "source",
-                "run-date": "2024-01-01",
-                "run-type": "full",
-                "stage": "extracted",
-                "action": "index",
-                "index": "01",
-                "file_type": "json",
-            }
-        )
-        == "source-2024-01-01-full-transformed-records-to-index_01.json"
     )
