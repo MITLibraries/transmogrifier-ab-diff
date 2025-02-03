@@ -155,6 +155,7 @@ def run_docker_container(
         run_id = str(uuid.uuid4())
 
     environment_variables = {
+        # NOTE: FEATURE FLAG: ETL_VERSION not required once v2 is fully implemented
         "ETL_VERSION": "2",
     }
 

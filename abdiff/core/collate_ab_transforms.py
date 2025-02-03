@@ -34,7 +34,7 @@ COLLATED_DATASET_SCHEMA = pa.schema(
 
 
 def collate_ab_transforms(run_directory: str, ab_transformed_datasets: list[str]) -> str:
-    """Collates A/B transformed files into a Parquet dataset."""
+    """Collates A/B transformed records into a Parquet dataset."""
     joined_dataset_path = tempfile.TemporaryDirectory()
     collated_dataset_path = str(Path(run_directory) / "collated")
 
