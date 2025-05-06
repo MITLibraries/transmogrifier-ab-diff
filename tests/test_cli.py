@@ -28,13 +28,16 @@ def test_cli_main_group_callback_called(caplog, runner):
 
 
 @patch("abdiff.core.build_ab_images.docker_image_exists")
+@patch("docker.from_env")
 def test_init_job_all_arguments_success(
+    mocked_docker_from_env,
     mocked_image_exists,
     caplog,
     runner,
     job_directory,
 ):
     mocked_image_exists.return_value = True
+    mocked_docker_from_env.return_value = None
     caplog.set_level("DEBUG")
 
     message = "This is a Super Job."

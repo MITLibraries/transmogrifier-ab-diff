@@ -30,6 +30,7 @@ pytest = "*"
 ruff = "*"
 setuptools = "*"
 pandas-stubs = "*"
+pip-audit = "*"
 
 [requires]
 python_version = "3.12"
